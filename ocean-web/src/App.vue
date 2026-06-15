@@ -114,7 +114,7 @@ export default defineComponent({
       }
     }
 
-    return { selectedKeys, user, logout }
+    return { selectedKeys, user, logout, isLoginPage }
   }
 })
 </script>
