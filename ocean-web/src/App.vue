@@ -14,6 +14,7 @@
               theme="dark"
               mode="horizontal"
               class="nav-menu"
+              @click="onMenuClick"
             >
               <a-menu-item key="home">
                 <home-outlined /> 首页
@@ -30,6 +31,9 @@
             </a-menu>
           </div>
           <div class="header-right">
+            <div class="school-badge" title="广东海洋大学">
+              <span class="school-text">GDOU</span>
+            </div>
             <template v-if="user.token">
               <div class="user-info">
                 <a-avatar :size="32" class="user-avatar">{{ user.name?.charAt(0) }}</a-avatar>
@@ -38,7 +42,7 @@
               <a-button class="logout-btn" @click="logout">退出登录</a-button>
             </template>
             <template v-else>
-              <a-button type="primary" class="login-btn" @click="$router.push('/login')">
+              <a-button type="primary" class="login-btn" @click="toLogin">
                 登录
               </a-button>
             </template>
@@ -58,12 +62,12 @@
           <div class="footer-links">
             <span>🌊 海洋生物知识库</span>
             <span class="footer-divider">|</span>
-            <span>探索海洋奥秘</span>
+            <span>广东海洋大学 实训项目</span>
             <span class="footer-divider">|</span>
-            <span>保护蓝色星球</span>
+            <span>探索海洋奥秘 · 保护蓝色星球</span>
           </div>
           <div class="footer-copyright">
-            ©2026 Ocean Knowledge Base Team
+            ©2026 Guangdong Ocean University - Ocean Knowledge Base Team
           </div>
         </div>
       </a-layout-footer>
@@ -100,6 +104,18 @@ export default defineComponent({
       else if (path.startsWith('/search')) selectedKeys.value = ['home']
     }, { immediate: true })
 
+    // 统一菜单点击导航
+    const onMenuClick = ({ key }: { key: string }) => {
+      switch (key) {
+        case 'home': router.push('/'); break
+        case 'notes': router.push('/notes'); break
+        case 'ai': router.push('/ai'); break
+        case 'admin': router.push('/admin'); break
+      }
+    }
+
+    const toLogin = () => router.push('/login')
+
     const logout = async () => {
       try {
         await axios.get('/api/user/logout', {
@@ -114,7 +130,7 @@ export default defineComponent({
       }
     }
 
-    return { selectedKeys, user, logout, isLoginPage }
+    return { selectedKeys, user, logout, isLoginPage, onMenuClick, toLogin }
   }
 })
 </script>
@@ -124,7 +140,7 @@ export default defineComponent({
   height: 64px;
   line-height: 64px;
   padding: 0;
-  background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d2842 100%);
+  background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 50%, #0d2842 100%);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   position: sticky;
   top: 0;
@@ -204,7 +220,25 @@ export default defineComponent({
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+}
+
+.school-badge {
+  padding: 2px 12px;
+  border: 1px solid rgba(54, 207, 201, 0.4);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #36cfc9;
+  cursor: default;
+}
+
+.school-text {
+  background: linear-gradient(90deg, #69b1ff, #36cfc9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .user-info {

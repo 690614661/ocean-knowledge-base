@@ -5,12 +5,21 @@
       <div class="bg-bubble bubble-2"></div>
       <div class="bg-bubble bubble-3"></div>
       <div class="bg-bubble bubble-4"></div>
+      <div class="bg-bubble bubble-5"></div>
+      <!-- 学校水印 -->
+      <div class="school-watermark">广东海洋大学</div>
     </div>
     <div class="login-container">
       <div class="login-brand">
         <div class="brand-icon">🌊</div>
         <div class="brand-title">海洋生物知识库</div>
+        <div class="brand-subtitle">Guangdong Ocean University</div>
         <div class="brand-desc">探索海洋奥秘，保护蓝色星球</div>
+        <div class="brand-decoration">
+          <div class="deco-line"></div>
+          <span class="deco-fish">🐟</span>
+          <div class="deco-line"></div>
+        </div>
       </div>
       <div class="login-card">
         <div class="login-header">
@@ -53,7 +62,8 @@
           </a-form-item>
         </a-form>
         <div class="login-footer">
-          <span class="login-hint">测试账号：admin / admin123</span>
+          <div class="login-hint">实训项目 · 广东海洋大学</div>
+          <div class="login-credits">@2026 Ocean Knowledge Base</div>
         </div>
       </div>
     </div>
@@ -96,13 +106,13 @@ export default defineComponent({
 
 <style scoped>
 .login-page {
-  min-height: calc(100vh - 134px);
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #e8f4fd 0%, #d6eaf8 30%, #aed6f1 60%, #e8f4fd 100%);
+  background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 30%, #0d4f6b 60%, #1677ff 100%);
 }
 
 .login-bg {
@@ -118,39 +128,48 @@ export default defineComponent({
 }
 
 .bubble-1 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, #1677ff, transparent);
-  top: -100px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #69b1ff, transparent);
+  top: -150px;
   left: -50px;
   animation: bubbleFloat 8s ease-in-out infinite;
 }
 
 .bubble-2 {
-  width: 250px;
-  height: 250px;
+  width: 350px;
+  height: 350px;
   background: radial-gradient(circle, #36cfc9, transparent);
-  bottom: 10%;
-  right: 10%;
+  bottom: 5%;
+  right: 5%;
   animation: bubbleFloat 6s ease-in-out infinite reverse;
 }
 
 .bubble-3 {
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   background: radial-gradient(circle, #1677ff, transparent);
-  top: 40%;
-  right: 25%;
+  top: 30%;
+  right: 20%;
   animation: bubbleFloat 10s ease-in-out infinite;
 }
 
 .bubble-4 {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   background: radial-gradient(circle, #69b1ff, transparent);
-  bottom: 30%;
-  left: 20%;
+  bottom: 25%;
+  left: 15%;
   animation: bubbleFloat 7s ease-in-out infinite reverse;
+}
+
+.bubble-5 {
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(circle, #36cfc9, transparent);
+  top: 60%;
+  left: 35%;
+  animation: bubbleFloat 9s ease-in-out infinite;
 }
 
 @keyframes bubbleFloat {
@@ -158,6 +177,17 @@ export default defineComponent({
   25% { transform: translate(20px, -30px) scale(1.05); }
   50% { transform: translate(-10px, -50px) scale(0.95); }
   75% { transform: translate(15px, -20px) scale(1.02); }
+}
+
+.school-watermark {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.15);
+  letter-spacing: 6px;
+  font-weight: 300;
 }
 
 .login-container {
@@ -174,45 +204,78 @@ export default defineComponent({
 .login-brand {
   flex: 1;
   text-align: center;
-  padding: 48px;
+  padding: 32px;
 }
 
 .brand-icon {
   font-size: 80px;
   margin-bottom: 16px;
-  animation: logoFloat 3s ease-in-out infinite;
+  animation: brandFloat 3s ease-in-out infinite;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.2));
 }
 
-@keyframes logoFloat {
+@keyframes brandFloat {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  50% { transform: translateY(-12px); }
 }
 
 .brand-title {
-  font-size: 28px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #1677ff, #36cfc9);
+  font-size: 32px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #69b1ff, #36cfc9);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.brand-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
 }
 
 .brand-desc {
   font-size: 15px;
-  color: #5a6a7a;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 20px;
+}
+
+.brand-decoration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.deco-line {
+  width: 60px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.deco-fish {
+  font-size: 20px;
+  animation: fishSwim 2s ease-in-out infinite;
+}
+
+@keyframes fishSwim {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(6px); }
 }
 
 .login-card {
   width: 380px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 40px;
   box-shadow:
-    0 8px 32px rgba(22, 119, 255, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.5);
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .login-header {
@@ -258,12 +321,18 @@ export default defineComponent({
 }
 
 .login-footer {
-  margin-top: 20px;
+  margin-top: 24px;
   text-align: center;
 }
 
 .login-hint {
   font-size: 12px;
   color: #999;
+  margin-bottom: 4px;
+}
+
+.login-credits {
+  font-size: 11px;
+  color: #ccc;
 }
 </style>
