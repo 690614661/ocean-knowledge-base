@@ -149,6 +149,25 @@ CREATE TABLE IF NOT EXISTS `ai_usage_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI用量日志表';
 
 -- 初始化管理员账号（密码: admin123，盐值: ocean_knowledge_salt_2026）
--- MD5(admin123 + ocean_knowledge_salt_2026) = 需要程序计算
+-- MD5(admin123 + ocean_knowledge_salt_2026) = 9ee22bd44711c82f309c1c12d3ac3912
 INSERT INTO `user` (`id`, `login_name`, `name`, `password`, `role`) VALUES
-(1, 'admin', '管理员', '0192023a7bbd7530176c1bf6de286c6c', 'admin');
+(1, 'admin', '管理员', '9ee22bd44711c82f309c1c12d3ac3912', 'admin');
+
+-- 初始化示例分类
+INSERT INTO `category` (`id`, `parent`, `name`, `sort`) VALUES
+(1001, 0, '鱼类', 1),
+(1002, 0, '海洋哺乳动物', 2),
+(1003, 0, '无脊椎动物', 3),
+(1004, 0, '海洋植物', 4),
+(1011, 1001, '深海鱼类', 1),
+(1012, 1001, '珊瑚礁鱼类', 2),
+(1021, 1002, '鲸类', 1),
+(1022, 1002, '海豚类', 2),
+(1031, 1003, '珊瑚', 1),
+(1032, 1003, '软体动物', 2),
+(1041, 1004, '海藻', 1);
+
+-- 初始化示例电子书（使用 SnowFlake 算法生成 ID）
+INSERT INTO `ebook` (`id`, `name`, `category1_id`, `category2_id`, `description`, `doc_count`, `view_count`, `vote_count`) VALUES
+(100001, '海洋生物图鉴', 1001, 1011, '全面收录各类海洋生物的图文介绍', 0, 0, 0),
+(100002, '鲸鱼百科', 1002, 1021, '深入了解鲸鱼的生活习性和生态保护', 0, 0, 0);

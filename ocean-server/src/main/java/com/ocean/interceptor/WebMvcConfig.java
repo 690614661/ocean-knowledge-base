@@ -16,6 +16,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Autowired
     private LoginInterceptor loginInterceptor;
 
+    @Autowired
+    private AdminInterceptor adminInterceptor;
+
     @Value("${file.upload-path}")
     private String uploadPath;
 
@@ -51,6 +54,22 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/swagger-resources/**",
                         "/v2/api-docs/**",
                         "/error"
+                );
+
+        // 管理员拦截器 - 仅管理员可访问管理接口
+        registry.addInterceptor(adminInterceptor)
+                .addPathPatterns(
+                        "/api/ebook/save",
+                        "/api/ebook/delete/**",
+                        "/api/category/save",
+                        "/api/category/delete/**",
+                        "/api/doc/save",
+                        "/api/doc/delete/**",
+                        "/api/user/list",
+                        "/api/user/save",
+                        "/api/user/delete/**",
+                        "/api/user/reset-password",
+                        "/api/file/**"
                 );
     }
 }

@@ -8,15 +8,18 @@ import com.ocean.common.BusinessException;
 import com.ocean.common.Constant;
 import com.ocean.common.PageResp;
 import com.ocean.domain.Category;
+import com.ocean.domain.Doc;
 import com.ocean.domain.Ebook;
 import com.ocean.domain.dto.EbookSaveReq;
+import com.ocean.mapper.ContentMapper;
+import com.ocean.mapper.DocMapper;
 import com.ocean.mapper.EbookMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,6 +29,12 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private DocMapper docMapper;
+
+    @Autowired
+    private ContentMapper contentMapper;
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
@@ -64,6 +73,7 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
         return new PageResp<>(ebookPage.getTotal(), ebookPage.getRecords());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void save(EbookSaveReq req) {
         Ebook ebook = new Ebook();
         if (req.getId() != null) {
@@ -83,9 +93,44 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
             ebook.setVoteCount(0);
         }
         this.saveOrUpdate(ebook);
+
+        // 清除电子书列表缓存
+        redisTemplate.delete(Constant.CACHE_EBOOK_LIST);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
+        Ebook ebook = this.getById(id);
+        if (ebook == null) {
+            throw new BusinessException("电子书不存在");
+        }
+
+        // 级联删除关联文档和内容
+        List<Doc> docs = docMapper.selectList(
+                new LambdaQueryWrapper<Doc>().eq(Doc::getEbookId, id));
+        for (Doc doc : docs) {
+            // 递归删除子文档
+            deleteDocTree(doc.getId());
+        }
+
+        // 删除电子书
         this.removeById(id);
+
+        // 清除缓存
+        redisTemplate.delete(Constant.CACHE_EBOOK_LIST);
+        redisTemplate.delete(Constant.CACHE_DOC_TREE_PREFIX + id);
+    }
+
+    private void deleteDocTree(Long docId) {
+        // 先查询子文档
+        List<Doc> children = docMapper.selectList(
+                new LambdaQueryWrapper<Doc>().eq(Doc::getParent, docId));
+        for (Doc child : children) {
+            deleteDocTree(child.getId());
+        }
+        // 删除文档内容
+        contentMapper.deleteById(docId);
+        // 删除文档
+        docMapper.deleteById(docId);
     }
 }

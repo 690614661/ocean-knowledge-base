@@ -35,7 +35,7 @@ public class DocController {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
-    @Autowired
+    @Autowired(required = false)
     private RocketMQTemplate rocketMQTemplate;
 
     @ApiOperation("文档树形列表")
@@ -81,10 +81,12 @@ public class DocController {
         docService.vote(id, ip);
 
         // 发送MQ消息，触发WebSocket通知
-        try {
-            rocketMQTemplate.convertAndSend("VOTE_TOPIC", "文档 " + id + " 被点赞");
-        } catch (Exception e) {
-            log.warn("MQ消息发送失败", e);
+        if (rocketMQTemplate != null) {
+            try {
+                rocketMQTemplate.convertAndSend("VOTE_TOPIC", "文档 " + id + " 被点赞");
+            } catch (Exception e) {
+                log.warn("MQ消息发送失败", e);
+            }
         }
 
         return CommonResp.ok("点赞成功");

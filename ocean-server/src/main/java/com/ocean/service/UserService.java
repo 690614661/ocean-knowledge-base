@@ -15,6 +15,7 @@ import com.ocean.domain.dto.UserSaveReq;
 import com.ocean.mapper.UserMapper;
 import com.ocean.util.JwtUtil;
 import com.ocean.util.Md5Util;
+import com.ocean.util.BcryptUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -40,14 +41,24 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             return CommonResp.fail("登录名或密码错误");
         }
 
-        // 校验密码
-        String encryptedPassword = Md5Util.encrypt(req.getPassword());
-        if (!encryptedPassword.equals(user.getPassword())) {
+        // 校验密码（BCrypt 优先，兼容旧 MD5）
+        boolean passwordMatch;
+        if (BcryptUtil.isBcrypt(user.getPassword())) {
+            passwordMatch = BcryptUtil.matches(req.getPassword(), user.getPassword());
+        } else {
+            passwordMatch = Md5Util.encrypt(req.getPassword()).equals(user.getPassword());
+            // 升级为 BCrypt
+            if (passwordMatch) {
+                user.setPassword(BcryptUtil.encrypt(req.getPassword()));
+                this.updateById(user);
+            }
+        }
+        if (!passwordMatch) {
             return CommonResp.fail("登录名或密码错误");
         }
 
-        // 生成 JWT Token
-        String token = JwtUtil.generateToken(user.getId(), user.getLoginName(), user.getName());
+        // 生成 JWT Token（含 role）
+        String token = JwtUtil.generateToken(user.getId(), user.getLoginName(), user.getName(), user.getRole());
 
         // 存入 Redis
         redisTemplate.opsForValue().set(Constant.TOKEN_REDIS_PREFIX + user.getId(), token, 24, TimeUnit.HOURS);
@@ -98,7 +109,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             user.setName(req.getName());
             user.setRole(req.getRole() != null ? req.getRole() : "user");
             if (StringUtils.hasText(req.getPassword())) {
-                user.setPassword(Md5Util.encrypt(req.getPassword()));
+                user.setPassword(BcryptUtil.encrypt(req.getPassword()));
             }
             this.save(user);
         } else {
@@ -123,7 +134,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
-        user.setPassword(Md5Util.encrypt(req.getPassword()));
+        user.setPassword(BcryptUtil.encrypt(req.getPassword()));
         this.updateById(user);
     }
 

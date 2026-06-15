@@ -10,3 +10,6 @@ spring:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
     default-property-inclusion: non_null
+
+cors:
+  allowed-origins: http://localhost,http://localhost:80,http://localhost:3000

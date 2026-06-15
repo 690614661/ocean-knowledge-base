@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class DocService extends ServiceImpl<DocMapper, Doc> {
 
     @Autowired
@@ -97,17 +98,15 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
             doc.setViewCount(0);
             doc.setVoteCount(0);
         }
-            this.saveOrUpdate(doc);
+        this.saveOrUpdate(doc);
 
-            // 清除文档目录树缓存
-            redisTemplate.delete(Constant.CACHE_DOC_TREE_PREFIX + req.getEbookId());
-
-            // 同步到ES索引
-            syncToEs(doc.getId(), doc.getName(), filteredContent != null ? filteredContent : "", doc.getEbookId());
+        // 清除文档目录树缓存
+        redisTemplate.delete(Constant.CACHE_DOC_TREE_PREFIX + req.getEbookId());
 
         // 保存内容
+        String filteredContent = null;
         if (req.getContent() != null) {
-            String filteredContent = XssFilterUtil.filterRichText(req.getContent());
+            filteredContent = XssFilterUtil.filterRichText(req.getContent());
             Content content = contentMapper.selectById(doc.getId());
             if (content == null) {
                 content = new Content();
@@ -120,10 +119,13 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
             }
         }
 
+        // 同步到ES索引
+        syncToEs(doc.getId(), doc.getName(), filteredContent != null ? filteredContent : "", doc.getEbookId());
+
         // 更新电子书文档数
         long docCount = this.count(new LambdaQueryWrapper<Doc>()
                 .eq(Doc::getEbookId, req.getEbookId()));
-        var ebook = ebookService.getById(req.getEbookId());
+        com.ocean.domain.Ebook ebook = ebookService.getById(req.getEbookId());
         if (ebook != null) {
             ebook.setDocCount((int) docCount);
             ebookService.updateById(ebook);
@@ -161,7 +163,7 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
         // 更新电子书文档数
         long docCount = this.count(new LambdaQueryWrapper<Doc>()
                 .eq(Doc::getEbookId, ebookId));
-        var ebook = ebookService.getById(ebookId);
+        com.ocean.domain.Ebook ebook = ebookService.getById(ebookId);
         if (ebook != null) {
             ebook.setDocCount((int) docCount);
             ebookService.updateById(ebook);

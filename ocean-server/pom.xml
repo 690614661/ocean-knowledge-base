@@ -113,6 +113,12 @@
             <version>2.3.1</version>
         </dependency>
 
+        <!-- BCrypt (替代 MD5) -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
         <!-- OkHttp (AI API calls) -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>

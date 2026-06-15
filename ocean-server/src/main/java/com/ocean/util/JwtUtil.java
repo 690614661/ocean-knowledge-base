@@ -29,11 +29,12 @@ public class JwtUtil {
         EXPIRATION = expiration;
     }
 
-    public static String generateToken(Long userId, String loginName, String name) {
+    public static String generateToken(Long userId, String loginName, String name, String role) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("loginName", loginName);
         claims.put("name", name);
+        claims.put("role", role);
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -70,5 +71,10 @@ public class JwtUtil {
     public static String getNameFromToken(String token) {
         Claims claims = Jwts.parser().setSigningKey(SECRET).parseClaimsJws(token).getBody();
         return (String) claims.get("name");
+    }
+
+    public static String getRoleFromToken(String token) {
+        Claims claims = Jwts.parser().setSigningKey(SECRET).parseClaimsJws(token).getBody();
+        return (String) claims.get("role");
     }
 }

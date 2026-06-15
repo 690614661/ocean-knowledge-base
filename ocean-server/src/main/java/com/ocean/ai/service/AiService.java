@@ -2,6 +2,8 @@ package com.ocean.ai.service;
 
 import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ocean.ai.model.AiRequest;
 import com.ocean.ai.model.AiResponse;
 import com.ocean.ai.model.ChatMessage;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -238,10 +241,12 @@ public class AiService {
     }
 
     public List<AiConversation> getConversations(Long userId, int page, int size) {
-        return conversationMapper.selectList(
+        IPage<AiConversation> convPage = conversationMapper.selectPage(
+                new Page<>(page, size),
                 new LambdaQueryWrapper<AiConversation>()
                         .eq(AiConversation::getUserId, userId)
                         .orderByDesc(AiConversation::getUpdateTime));
+        return convPage.getRecords();
     }
 
     public List<AiMessage> getMessages(String conversationId, Long userId) {
