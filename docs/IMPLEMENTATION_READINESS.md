@@ -13,7 +13,7 @@
 | 数据模型蓝图 | ✅ 完成 | docs/DATA_MODEL.md |
 | 数据库 Schema 策略 | ✅ 明确 | DATA_MODEL §2 |
 | API Contract | ✅ 完成 | docs/API_CONTRACT.md |
-| AI / 自动化规格 | ⏭️ 跳过（无 AI 需求） | - |
+| AI / 自动化规格 | ✅ 完成 | docs/AGENT_SPEC.md |
 | 隐私 / 安全 / 风险 | ✅ 完成 | docs/PRIVACY_SECURITY.md |
 | 开放问题 | ✅ 已列出 | 各文档 §开放问题 |
 
@@ -237,3 +237,59 @@ JWT_SECRET: ocean_knowledge_jwt_secret_2026
 3. **全员**：执行数据库初始化脚本
 
 预计 Day 6 结束时，登录流程跑通，前后端骨架搭建完成。
+
+---
+
+## 8. V2 AI 功能实现路线图
+
+### 阶段 5：AI 基础设施（V2 Day 1~3）
+
+**后端**
+- [ ] 添加 DeepSeek API 依赖（OkHttp / RestTemplate）
+- [ ] 实现 AiProvider 接口 + DeepSeekProvider 实现
+- [ ] 实现 AiRequest / AiResponse / ChatMessage 模型
+- [ ] 实现 AI 配置（application.yml + 环境变量）
+- [ ] 实现 AiConversation / AiMessage / AiUsageLog 实体和 Mapper
+- [ ] 实现 Conversation Manager（会话创建、历史查询、上下文裁剪）
+- [ ] 实现 Prompt Registry（系统 prompt 模板管理）
+- [ ] 实现 Cost Meter（用量记录、费用计算）
+- [ ] 实现 AI 接口限流（每用户每分钟/每天）
+
+### 阶段 6：AI 问答 + 内容生成（V2 Day 4~7）
+
+**后端**
+- [ ] 实现 AiController：/api/ai/chat（多轮对话）
+- [ ] 实现 AiController：/api/ai/generate（内容生成）
+- [ ] 实现 AiController：/api/ai/conversations（会话列表）
+- [ ] 实现 AiController：/api/ai/conversations/{id}/messages（消息历史）
+- [ ] 实现 AiController：/api/ai/usage（用量统计）
+- [ ] 实现 Output Validator（输出长度、格式校验）
+
+**前端**
+- [ ] 实现 AI 问答面板组件（AiChatPanel）
+- [ ] 实现对话列表和消息历史展示
+- [ ] 实现 AI 内容生成交互（生成/扩写/总结/润色）
+- [ ] 对接 AI 接口
+
+### 阶段 7：用户笔记（V2 Day 8~10）
+
+**后端**
+- [ ] 创建 Note 表（SQL）
+- [ ] 实现 NoteController：笔记 CRUD + 公开笔记列表 + 点赞
+- [ ] 实现笔记权限校验（仅编辑/删除自己的笔记）
+
+**前端**
+- [ ] 实现笔记编辑器（复用 wangEditor + AI 辅助按钮）
+- [ ] 实现笔记列表页（我的笔记 + 公开笔记）
+- [ ] 实现笔记详情页
+- [ ] 对接笔记接口
+
+### 阶段 8：测试和优化（V2 Day 11~14）
+
+- [ ] AI 问答功能测试（多轮对话、上下文裁剪、超时处理）
+- [ ] 内容生成功能测试（各场景生成质量）
+- [ ] 笔记功能测试（CRUD、权限、公开/私有）
+- [ ] AI 限流和用量统计验证
+- [ ] 安全测试（API Key 保护、对话隔离、笔记权限）
+- [ ] 性能测试（AI 响应时间、并发调用）
+- [ ] Bug 修复和优化

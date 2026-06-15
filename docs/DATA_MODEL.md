@@ -24,21 +24,35 @@
 ┌──────────┐     ┌──────────┐     ┌──────────┐
 │  User    │     │ Category │     │  Ebook   │
 │ 用户      │     │ 分类      │     │ 电子书    │
-└──────────┘     └────┬─────┘     └────┬─────┘
-                      │ parent         │
-                      └─→ self         │ ebook_id
-                                       ▼
-                                  ┌──────────┐
-                                  │   Doc    │
-                                  │ 文档      │
-                                  └────┬─────┘
-                                       │
-                              ┌────────┼────────┐
-                              │        │        │
-                         ┌────▼───┐ ┌──▼─────┐ ┌▼──────────────┐
-                         │Content │ │ parent │ │EbookSnapshot   │
-                         │文档正文 │ │→ self  │ │数据快照         │
-                         └────────┘ └────────┘ └───────────────┘
+└────┬─────┘     └────┬─────┘     └────┬─────┘
+     │                │ parent         │
+     │                └─→ self         │ ebook_id
+     │                                 ▼
+     │                            ┌──────────┐
+     │                            │   Doc    │
+     │                            │ 文档      │
+     │                            └────┬─────┘
+     │                                 │
+     │                        ┌────────┼────────┐
+     │                        │        │        │
+     │                   ┌────▼───┐ ┌──▼─────┐ ┌▼──────────────┐
+     │                   │Content │ │ parent │ │EbookSnapshot   │
+     │                   │文档正文 │ │→ self  │ │数据快照         │
+     │                   └────────┘ └────────┘ └───────────────┘
+     │
+     ├─────────────────────────────────────────────┐
+     │                    │                         │
+     ▼                    ▼                         ▼
+┌──────────┐     ┌──────────────┐         ┌──────────────┐
+│  Note    │     │AiConversation│         │AiUsageLog    │
+│ 用户笔记  │     │AI 对话会话    │         │AI 用量日志    │
+└──────────┘     └──────┬───────┘         └──────────────┘
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │  AiMessage   │
+                 │  AI 对话消息   │
+                 └──────────────┘
 ```
 
 ## 4. 关系概览
@@ -50,7 +64,10 @@
 | 自引用 | Doc | Doc | 文档父子树形（parent_id） |
 | 一对一 | Doc | Content | 文档与正文分离存储 |
 | 一对多 | Ebook | EbookSnapshot | 每个电子书每天一条快照 |
-| 独立 | User | - | 用户不与其他实体直接关联 |
+| 一对多 | User | Note | 用户创建的笔记 |
+| 一对多 | User | AiConversation | 用户的 AI 对话会话 |
+| 一对多 | AiConversation | AiMessage | 会话中的消息 |
+| 一对多 | User | AiUsageLog | 用户的 AI 用量记录 |
 
 ## 5. 枚举目录
 
@@ -260,6 +277,135 @@
 - vote_increase = 当前 vote_count - 昨日 vote_count
 - 建议保留 30 天，超期清理
 
+---
+
+### 6.7 Note（用户笔记）
+
+**Purpose**：用户创建的学习笔记，支持 AI 辅助生成，可公开分享。
+
+**Phase**：V2
+
+**Key Fields**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | BIGINT | PK | 雪花算法生成 |
+| user_id | BIGINT | ✅ | 作者 ID |
+| title | VARCHAR(100) | ✅ | 笔记标题 |
+| content | MEDIUMTEXT | ❌ | 富文本 HTML 内容 |
+| is_public | TINYINT | ✅ | 是否公开（0 私有 1 公有），默认 0 |
+| view_count | INT | default 0 | 阅读数 |
+| vote_count | INT | default 0 | 点赞数 |
+| create_time | DATETIME | auto | 创建时间 |
+| update_time | DATETIME | auto | 更新时间 |
+
+**Relationships**：
+- 多对一：user_id → User.id
+
+**Indexes / Constraints**：
+- INDEX：user_id（查询用户的笔记）
+- INDEX：is_public（查询公开笔记）
+
+**Notes**：
+- 内容需经过 XSS 白名单过滤后存储
+- 公开笔记所有用户可见，私有笔记仅作者可见
+
+---
+
+### 6.8 AiConversation（AI 对话会话）
+
+**Purpose**：记录用户的 AI 对话会话，支持多轮对话。
+
+**Phase**：V2
+
+**Key Fields**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | VARCHAR(32) | PK | UUID |
+| user_id | BIGINT | ✅ | 用户 ID |
+| title | VARCHAR(100) | ❌ | 会话标题（首条消息截取前 50 字符） |
+| create_time | DATETIME | auto | 创建时间 |
+| update_time | DATETIME | auto | 更新时间 |
+
+**Relationships**：
+- 多对一：user_id → User.id
+- 一对多：AiConversation.id → AiMessage.conversation_id
+
+**Indexes / Constraints**：
+- INDEX：user_id（查询用户的会话列表）
+
+**Notes**：
+- 会话保留最近 30 天，超期清理
+
+---
+
+### 6.9 AiMessage（AI 对话消息）
+
+**Purpose**：存储 AI 对话中的每条消息（用户输入和 AI 回复）。
+
+**Phase**：V2
+
+**Key Fields**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | VARCHAR(32) | PK | UUID |
+| conversation_id | VARCHAR(32) | ✅ | 会话 ID |
+| role | VARCHAR(10) | ✅ | 消息角色：user / assistant |
+| content | TEXT | ✅ | 消息内容 |
+| prompt_tokens | INT | default 0 | 输入 token 数（仅 assistant 消息） |
+| completion_tokens | INT | default 0 | 输出 token 数（仅 assistant 消息） |
+| create_time | DATETIME | auto | 创建时间 |
+
+**Relationships**：
+- 多对一：conversation_id → AiConversation.id
+
+**Indexes / Constraints**：
+- INDEX：conversation_id（查询会话的消息列表）
+
+**Notes**：
+- 用户消息的 token 字段为 0
+- 最多保留每会话最近 100 条消息
+
+---
+
+### 6.10 AiUsageLog（AI 用量日志）
+
+**Purpose**：记录每次 AI 调用的用量和费用，用于成本统计和监控。
+
+**Phase**：V2
+
+**Key Fields**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | BIGINT | PK | 自增 |
+| user_id | BIGINT | ✅ | 用户 ID |
+| feature | VARCHAR(20) | ✅ | 功能类型：chat / note / doc_assist |
+| provider | VARCHAR(20) | ✅ | 供应商名称（deepseek / tongyi 等） |
+| model | VARCHAR(50) | ✅ | 模型名称 |
+| prompt_tokens | INT | ✅ | 输入 token 数 |
+| completion_tokens | INT | ✅ | 输出 token 数 |
+| total_tokens | INT | ✅ | 总 token 数 |
+| cost_yuan | DECIMAL(10,6) | ✅ | 费用（元） |
+| latency_ms | INT | ✅ | 响应耗时（毫秒） |
+| status | VARCHAR(10) | ✅ | 调用状态：success / error |
+| create_time | DATETIME | auto | 创建时间 |
+
+**Relationships**：
+- 多对一：user_id → User.id
+
+**Indexes / Constraints**：
+- INDEX：user_id（按用户统计用量）
+- INDEX：create_time（按时间统计）
+
+**Notes**：
+- 失败的调用也记录（status=error, cost_yuan=0）
+- 保留 90 天，超期清理
+
+---
+
 ## 7. 数据保留和删除
 
 | 实体 | 删除策略 | 保留规则 |
@@ -270,6 +416,10 @@
 | Doc | 硬删除（含递归子文档） | 无保留 |
 | Content | 随 Doc 级联删除 | 无保留 |
 | EbookSnapshot | 定时清理 | 保留 30 天 |
+| Note | 硬删除 | 无保留 |
+| AiConversation | 定时清理 | 保留 30 天 |
+| AiMessage | 随会话级联删除 | 保留 30 天 |
+| AiUsageLog | 定时清理 | 保留 90 天 |
 
 ## 8. V1 必须模型（实现优先级）
 
@@ -282,7 +432,16 @@
 | P1 | Content | V1a | 文档正文 |
 | P2 | EbookSnapshot | V1b | 数据统计 |
 
-## 9. 预留模型（V2/V3）
+## 9. V2 新增模型（AI + 笔记）
+
+| 实体 | 用途 | 预计版本 |
+|------|------|---------|
+| Note | 用户学习笔记 | V2 |
+| AiConversation | AI 对话会话 | V2 |
+| AiMessage | AI 对话消息 | V2 |
+| AiUsageLog | AI 用量日志 | V2 |
+
+## 10. 预留模型（V2/V3）
 
 | 实体 | 用途 | 预计版本 |
 |------|------|---------|

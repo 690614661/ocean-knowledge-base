@@ -104,6 +104,11 @@ Token 存储于 Redis，Key：`token:{userId}`，TTL 24h。
 | 用户管理 | ❌ | ❌ | ✅ |
 | 统计查询 | ✅ | ✅ | ✅ |
 | 登录/退出 | ✅ | ✅ | ✅ |
+| AI 问答 | ❌ | ✅ | ✅ |
+| AI 内容生成 | ❌ | ✅ | ✅ |
+| 笔记查看公开 | ✅ | ✅ | ✅ |
+| 笔记 CRUD | ❌ | ✅ | ✅ |
+| AI 辅助文档 | ❌ | ❌ | ✅ |
 
 ## 8. API 模块概览
 
@@ -116,6 +121,9 @@ Token 存储于 Redis，Key：`token:{userId}`，TTL 24h。
 | 统计 | 1 | V1b |
 | 文件上传 | 1 | V1a |
 | Swagger 文档 | 1 | V1a |
+| AI 问答 | 3 | V2 |
+| 用户笔记 | 6 | V2 |
+| AI 用量统计 | 1 | V2 |
 
 ### Swagger API 文档
 
@@ -455,6 +463,180 @@ Token 存储于 Redis，Key：`token:{userId}`，TTL 24h。
 ```
 - **校验**：仅允许 jpg/png/gif，最大 2MB
 
+### 9.7 AI 问答
+
+#### POST /api/ai/chat
+- **Purpose**：AI 多轮对话
+- **Roles**：登录用户
+- **Request**：
+```json
+{
+  "conversationId": "conv_123456",       // 新建时为空或不传
+  "message": "鲸鱼为什么能在水里生活？"
+}
+```
+- **Response**：
+```json
+{
+  "success": true,
+  "message": "操作成功",
+  "content": {
+    "conversationId": "conv_123456",
+    "messageId": "msg_789",
+    "role": "assistant",
+    "content": "鲸鱼能在水里生活是因为它们具有以下适应性特征...",
+    "usage": {
+      "promptTokens": 520,
+      "completionTokens": 380,
+      "totalTokens": 900,
+      "estimatedCost": "0.0018"
+    }
+  }
+}
+```
+- **限流**：每用户每分钟 10 次，每天 100 次
+
+#### GET /api/ai/conversations
+- **Purpose**：获取用户的对话会话列表
+- **Roles**：登录用户
+- **Query**：page, size
+- **Response**：会话列表（id, title, createTime, updateTime）
+
+#### GET /api/ai/conversations/{id}/messages
+- **Purpose**：获取会话的消息历史
+- **Roles**：登录用户（仅自己的会话）
+- **Path**：id（会话 ID）
+- **Response**：消息列表（id, role, content, createTime）
+
+---
+
+### 9.8 AI 辅助内容生成
+
+#### POST /api/ai/generate
+- **Purpose**：AI 生成内容（笔记生成/扩写/总结/润色、文档辅助）
+- **Roles**：登录用户
+- **Request**：
+```json
+{
+  "type": "note_generate",               // note_generate | note_expand | note_summarize | note_polish | doc_outline | doc_expand | doc_supplement | doc_polish
+  "topic": "深海生态笔记",               // note_generate 时必填
+  "selectedText": "",                    // expand/summarize/polish 时必填
+  "conversationId": null                 // 可选：关联对话
+}
+```
+- **Response**：
+```json
+{
+  "success": true,
+  "message": "生成成功",
+  "content": {
+    "text": "# 深海生态笔记\n\n## 1. 深海环境...",
+    "usage": {
+      "promptTokens": 320,
+      "completionTokens": 680,
+      "totalTokens": 1000,
+      "estimatedCost": "0.0020"
+    }
+  }
+}
+```
+- **限流**：每用户每分钟 5 次
+
+---
+
+### 9.9 用户笔记
+
+#### GET /api/note/list
+- **Purpose**：查询当前用户的笔记列表
+- **Roles**：登录用户
+- **Query**：page, size
+- **Response**：笔记列表（id, title, isPublic, viewCount, voteCount, createTime, updateTime）
+
+#### GET /api/note/public
+- **Purpose**：查询公开笔记列表
+- **Roles**：公开
+- **Query**：page, size, keyword?
+- **Response**：公开笔记列表
+
+#### GET /api/note/{id}
+- **Purpose**：获取笔记详情（含内容）
+- **Roles**：公开笔记所有人可看，私有笔记仅作者
+- **Path**：id（笔记 ID）
+- **Response**：
+```json
+{
+  "success": true,
+  "message": "查询成功",
+  "content": {
+    "id": 123456789,
+    "userId": 987654321,
+    "title": "深海生态笔记",
+    "content": "<h1>深海生态笔记</h1><p>...</p>",
+    "isPublic": 1,
+    "viewCount": 50,
+    "voteCount": 5,
+    "createTime": "2026-06-15 10:30:00",
+    "updateTime": "2026-06-15 14:20:00"
+  }
+}
+```
+- **副作用**：view_count +1
+
+#### POST /api/note/save
+- **Purpose**：新增或编辑笔记
+- **Roles**：登录用户
+- **Request**：
+```json
+{
+  "id": null,
+  "title": "深海生态笔记",
+  "content": "<h1>深海生态笔记</h1><p>...</p>",
+  "isPublic": 1
+}
+```
+- **校验**：title 非空（最大 100）、content 经 XSS 过滤
+- **Response**：`{ "success": true, "message": "保存成功", "content": null }`
+- **权限**：仅能编辑自己的笔记
+
+#### DELETE /api/note/delete/{id}
+- **Purpose**：删除笔记
+- **Roles**：登录用户（仅自己的笔记）
+- **Path**：id（笔记 ID）
+- **Response**：`{ "success": true, "message": "删除成功", "content": null }`
+
+#### POST /api/note/vote/{id}
+- **Purpose**：笔记点赞
+- **Roles**：登录用户
+- **Path**：id（笔记 ID）
+- **校验**：Redis 防重（同 IP 同笔记每天一次）
+- **Response**：`{ "success": true, "message": "点赞成功", "content": null }`
+
+---
+
+### 9.10 AI 用量统计
+
+#### GET /api/ai/usage
+- **Purpose**：查询当前用户的 AI 使用量统计
+- **Roles**：登录用户
+- **Query**：startDate?, endDate?
+- **Response**：
+```json
+{
+  "success": true,
+  "message": "查询成功",
+  "content": {
+    "totalCalls": 150,
+    "totalTokens": 135000,
+    "totalCostYuan": "0.2700",
+    "byFeature": {
+      "chat": { "calls": 100, "tokens": 90000, "costYuan": "0.1800" },
+      "note": { "calls": 40, "tokens": 35000, "costYuan": "0.0700" },
+      "doc_assist": { "calls": 10, "tokens": 10000, "costYuan": "0.0200" }
+    }
+  }
+}
+```
+
 ## 10. 非目标和禁止 API
 
 以下 API 在 V1 中不实现：
@@ -491,7 +673,7 @@ Token 存储于 Redis，Key：`token:{userId}`，TTL 24h。
 | 18 | GET | /api/snapshot/get-statistic | V1b |
 | 19 | POST | /api/file/upload | V1a |
 
-**总计**：19 个业务 API + Swagger 文档（/doc.html）
+**总计**：19 个业务 API + Swagger 文档（/doc.html）+ 10 个 V2 AI/笔记 API
 
 ## 12. 开放问题
 

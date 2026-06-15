@@ -14,6 +14,9 @@
 | user.name | NORMAL | 昵称 |
 | ebook/doc/category | NORMAL | 知识内容，公开数据 |
 | client IP | SENSITIVE | 用于点赞防重，不对外暴露 |
+| DeepSeek API Key | HIGH_SENSITIVE | 环境变量存储，不返回前端，日志不打印 |
+| AI 对话内容 | SENSITIVE | 用户的提问和 AI 回复，仅用户本人可见 |
+| AI 用量数据 | NORMAL | token 用量和费用统计 |
 
 ## 3. 安全防护清单
 
@@ -71,7 +74,20 @@
 | 存储 | 加密后的 32 位字符串 |
 | 传输 | HTTPS（生产环境）/ HTTP（本机演示） |
 
-### 3.6 CORS 跨域
+### 3.6 AI API 安全
+
+| 措施 | 说明 |
+|------|------|
+| API Key 存储 | 环境变量 `DEEPSEEK_API_KEY`，不硬编码，不返回前端 |
+| 日志脱敏 | AI 调用日志不打印 API Key |
+| 接口限流 | AI 问答：每用户 10 次/分钟、100 次/天；内容生成：5 次/分钟 |
+| 输出校验 | AI 输出经过长度检查和敏感词过滤 |
+| 对话隔离 | 用户只能查看自己的对话历史，不能访问他人会话 |
+| 笔记权限 | 私有笔记仅作者可见，公开笔记所有人可看 |
+| 管理员确认 | AI 生成的文档内容不会自动保存，必须管理员手动确认 |
+| 费用监控 | 记录每次调用的 token 用量和费用，支持按用户/功能统计 |
+
+### 3.7 CORS 跨域
 
 ```java
 // 允许的前端域名
@@ -108,6 +124,15 @@ POST /api/user/login
 ```
 POST /api/doc/vote/{id}
 GET  /api/user/logout
+POST /api/ai/chat
+POST /api/ai/generate
+GET  /api/ai/conversations
+GET  /api/ai/conversations/{id}/messages
+GET  /api/ai/usage
+GET  /api/note/list
+POST /api/note/save
+DELETE /api/note/delete/{id}
+POST /api/note/vote/{id}
 ```
 
 ### 4.3 管理员接口（需 Token + 管理员身份）
@@ -172,6 +197,10 @@ private String password;
 | 富文本存储型 XSS | 中 | 阅读页面被攻击 | Jsoup 白名单过滤 |
 | 数据丢失 | 低 | 内容丢失 | Docker Volume 持久化（本机演示） |
 | DDoS 攻击 | 低 | 服务不可用 | 本机演示环境，风险低 |
+| AI API Key 泄露 | 高 | 他人盗用 Key 消费 | 环境变量存储，不返回前端，日志脱敏 |
+| AI 调用费用超支 | 中 | 费用失控 | 接口限流 + 每日上限 + 用量日志 |
+| AI 输出敏感内容 | 中 | 不当内容传播 | 输出校验 + 管理员确认机制 |
+| AI 对话数据泄露 | 中 | 用户隐私泄露 | 对话隔离，仅本人可见 |
 
 ## 7. 安全测试检查清单
 
