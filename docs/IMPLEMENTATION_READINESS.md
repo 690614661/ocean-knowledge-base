@@ -34,26 +34,26 @@
 
 **结论**：所有进入条件已满足。
 
-## 3. 实现路线图
+## 3. 实现路线图（合并版，25 天）
 
-### 阶段 1：基础骨架（Day 1~6）
+### 阶段 1：基础骨架（Day 1~4）
 
-**后端（A + B）**
+**后端**
 - [ ] 创建 Gitee 仓库，初始化 Git
-- [ ] 创建 Spring Boot 项目，配置 pom.xml 依赖
-- [ ] 配置 application.yml（MySQL、Redis、ES 连接信息）
+- [ ] 创建 Spring Boot 项目，配置 pom.xml 依赖（含 OkHttp）
+- [ ] 配置 application.yml（MySQL、Redis、ES、DeepSeek API 连接信息）
 - [ ] 配置 Swagger/knife4j（@Api、@ApiOperation 注解）
 - [ ] 实现 CommonResp 统一返回对象
 - [ ] 实现全局异常处理（BusinessException + 参数校验异常）
 - [ ] 实现 XSS 过滤器
 - [ ] 实现 CORS 跨域配置
 - [ ] 实现 AOP 日志 + 耗时监控（MDC LOG_ID）
-- [ ] 创建所有数据库表（初始化 SQL）
+- [ ] 创建所有数据库表（含 Note、AiConversation、AiMessage、AiUsageLog）
 - [ ] 实现用户模块：登录/退出/JWT/Redis Token
 - [ ] 实现登录拦截器
 - [ ] 实现接口限流（@RateLimit 注解）
 
-**前端（C + D）**
+**前端**
 - [ ] 创建 Vue3 项目，配置 TypeScript + ESLint
 - [ ] 安装 Ant Design Vue 4.x
 - [ ] 配置 Axios 实例 + 请求/响应拦截器（Token 注入、401 处理）
@@ -63,62 +63,85 @@
 - [ ] 实现导航栏动态菜单（根据登录状态和角色显示/隐藏管理入口）
 - [ ] 实现 404/500 错误页面
 
-### 阶段 2：核心业务（Day 7~14）
+### 阶段 2：核心业务（Day 5~10）
 
-**后端（A）**
+**后端**
 - [ ] 实现分类模块：CRUD + 树形查询
 - [ ] 实现电子书模块：CRUD + 分页 + 模糊搜索 + 分类过滤
 - [ ] 实现文件上传接口（封面图）
 - [ ] 实现文档模块：CRUD + 树形查询 + 内容保存（doc + content）
 - [ ] 实现文档递归删除
 - [ ] 实现文档阅读接口（view_count +1）
-
-**后端（B）**
 - [ ] 搭建 ElasticSearch，创建 doc_index 索引
 - [ ] 实现 ES 索引同步（文档增删改时）
 - [ ] 实现全文检索接口（关键词高亮 + 分页）
 - [ ] 实现 Redis 缓存（首页统计、电子书列表、文档目录树）
 - [ ] 实现点赞接口（Redis 防重 + vote_count +1）
 
-**前端（C）**
+**前端**
 - [ ] 实现管理后台布局（AdminLayout）
 - [ ] 实现电子书管理页（表格 + 新增/编辑弹窗 + 删除确认）
 - [ ] 实现分类管理页（树形表格 + 新增/编辑弹窗）
 - [ ] 实现文档管理页（树形表格 + wangEditor 富文本编辑器）
 - [ ] 实现用户管理页（表格 + 新增/编辑弹窗 + 重置密码）
-
-**前端（D）**
 - [ ] 实现电子书列表页（卡片展示 + 分类筛选）
 - [ ] 实现文档阅读页（目录树 + 富文本渲染 + 点赞按钮）
 - [ ] 实现搜索功能（搜索框 + 搜索结果页 + 关键词高亮）
 
-### 阶段 3：增强功能（Day 15~19）
+### 阶段 3：AI 功能（Day 11~17）
 
-**后端（A）**
+**后端**
+- [ ] 实现 AiProvider 接口 + DeepSeekProvider 实现
+- [ ] 实现 AiRequest / AiResponse / ChatMessage 模型
+- [ ] 实现 Conversation Manager（会话创建、历史查询、上下文裁剪）
+- [ ] 实现 Prompt Registry（系统 prompt 模板管理）
+- [ ] 实现 Cost Meter（用量记录、费用计算）
+- [ ] 实现 Output Validator（输出长度、格式校验）
+- [ ] 实现 AI 接口限流（每用户每分钟/每天）
+- [ ] 实现 AiController：/api/ai/chat（多轮对话）
+- [ ] 实现 AiController：/api/ai/generate（内容生成）
+- [ ] 实现 AiController：/api/ai/conversations（会话列表）
+- [ ] 实现 AiController：/api/ai/conversations/{id}/messages（消息历史）
+- [ ] 实现 AiController：/api/ai/usage（用量统计）
+- [ ] 创建 Note 表（SQL）
+- [ ] 实现 NoteController：笔记 CRUD + 公开笔记列表 + 点赞
+- [ ] 实现笔记权限校验（仅编辑/删除自己的笔记）
+
+**前端**
+- [ ] 实现 AI 问答面板组件（AiChatPanel）
+- [ ] 实现对话列表和消息历史展示
+- [ ] 实现 AI 内容生成交互（生成/扩写/总结/润色）
+- [ ] 实现笔记编辑器（复用 wangEditor + AI 辅助按钮）
+- [ ] 实现笔记列表页（我的笔记 + 公开笔记）
+- [ ] 实现笔记详情页
+- [ ] 对接 AI 和笔记接口
+
+### 阶段 4：增强功能（Day 18~21）
+
+**后端**
 - [ ] 实现 WebSocket 服务端（Session 管理 + 消息推送）
 - [ ] 实现 RocketMQ Producer（点赞事件）
 - [ ] 实现 RocketMQ Consumer（通知推送）
-
-**后端（B）**
 - [ ] 实现电子书快照定时任务（每分钟，幂等）
 - [ ] 实现统计查询接口（总阅读/总点赞/今日数据/增长率/趋势）
+- [ ] 实现管理员 AI 辅助文档编辑接口
 
-**前端（C）**
+**前端**
 - [ ] 管理页交互打磨（分页、搜索、表单校验、操作反馈）
-- [ ] 响应式适配
-
-**前端（D）**
 - [ ] 实现首页统计卡片（StatCard 组件）
 - [ ] 实现 ECharts 30 天趋势折线图
 - [ ] 实现 WebSocket 通知 UI（消息铃铛/弹窗）
 - [ ] 首页数据对接
+- [ ] 管理员文档编辑器集成 AI 辅助功能
 
-### 阶段 4：测试部署（Day 20~25）
+### 阶段 5：测试部署（Day 22~25）
 
 **全员**
-- [ ] 交叉测试（A 测前端、C 测后端）
-- [ ] 安全测试（XSS、SQL 注入、Token、限流）
-- [ ] 性能测试（并发点赞、缓存命中）
+- [ ] 交叉测试（前端/后端互测）
+- [ ] 安全测试（XSS、SQL 注入、Token、限流、API Key 保护）
+- [ ] 功能测试（知识浏览、搜索、点赞、AI 问答、笔记）
+- [ ] AI 专项测试（多轮对话、上下文裁剪、超时处理、限流）
+- [ ] 性能测试（并发点赞、缓存命中、AI 响应时间）
 - [ ] Bug 修复
 - [ ] Docker Compose 编排（MySQL + Redis + ES + RocketMQ + 后端 + Nginx）
 - [ ] 多环境配置（dev / prod）
@@ -149,6 +172,9 @@ spring-boot-starter-data-elasticsearch
 
 <!-- 消息队列 -->
 rocketmq-spring-boot-starter (2.2.3)
+
+<!-- AI -->
+okhttp (4.x，调用 DeepSeek API)
 
 <!-- 工具 -->
 lombok
@@ -206,6 +232,16 @@ jwt:
 
 salt:
   password: ocean_knowledge_salt_2026
+
+ai:
+  provider: deepseek
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY}
+    base-url: https://api.deepseek.com
+    model: deepseek-chat
+    max-tokens: 4096
+    temperature: 0.7
+    timeout: 60s
 ```
 
 ### Docker Compose 环境变量
@@ -214,6 +250,7 @@ salt:
 MYSQL_ROOT_PASSWORD: root123
 MYSQL_DATABASE: ocean_knowledge
 JWT_SECRET: ocean_knowledge_jwt_secret_2026
+DEEPSEEK_API_KEY: your_deepseek_api_key_here
 ```
 
 ## 6. 最终结论
@@ -238,58 +275,3 @@ JWT_SECRET: ocean_knowledge_jwt_secret_2026
 
 预计 Day 6 结束时，登录流程跑通，前后端骨架搭建完成。
 
----
-
-## 8. V2 AI 功能实现路线图
-
-### 阶段 5：AI 基础设施（V2 Day 1~3）
-
-**后端**
-- [ ] 添加 DeepSeek API 依赖（OkHttp / RestTemplate）
-- [ ] 实现 AiProvider 接口 + DeepSeekProvider 实现
-- [ ] 实现 AiRequest / AiResponse / ChatMessage 模型
-- [ ] 实现 AI 配置（application.yml + 环境变量）
-- [ ] 实现 AiConversation / AiMessage / AiUsageLog 实体和 Mapper
-- [ ] 实现 Conversation Manager（会话创建、历史查询、上下文裁剪）
-- [ ] 实现 Prompt Registry（系统 prompt 模板管理）
-- [ ] 实现 Cost Meter（用量记录、费用计算）
-- [ ] 实现 AI 接口限流（每用户每分钟/每天）
-
-### 阶段 6：AI 问答 + 内容生成（V2 Day 4~7）
-
-**后端**
-- [ ] 实现 AiController：/api/ai/chat（多轮对话）
-- [ ] 实现 AiController：/api/ai/generate（内容生成）
-- [ ] 实现 AiController：/api/ai/conversations（会话列表）
-- [ ] 实现 AiController：/api/ai/conversations/{id}/messages（消息历史）
-- [ ] 实现 AiController：/api/ai/usage（用量统计）
-- [ ] 实现 Output Validator（输出长度、格式校验）
-
-**前端**
-- [ ] 实现 AI 问答面板组件（AiChatPanel）
-- [ ] 实现对话列表和消息历史展示
-- [ ] 实现 AI 内容生成交互（生成/扩写/总结/润色）
-- [ ] 对接 AI 接口
-
-### 阶段 7：用户笔记（V2 Day 8~10）
-
-**后端**
-- [ ] 创建 Note 表（SQL）
-- [ ] 实现 NoteController：笔记 CRUD + 公开笔记列表 + 点赞
-- [ ] 实现笔记权限校验（仅编辑/删除自己的笔记）
-
-**前端**
-- [ ] 实现笔记编辑器（复用 wangEditor + AI 辅助按钮）
-- [ ] 实现笔记列表页（我的笔记 + 公开笔记）
-- [ ] 实现笔记详情页
-- [ ] 对接笔记接口
-
-### 阶段 8：测试和优化（V2 Day 11~14）
-
-- [ ] AI 问答功能测试（多轮对话、上下文裁剪、超时处理）
-- [ ] 内容生成功能测试（各场景生成质量）
-- [ ] 笔记功能测试（CRUD、权限、公开/私有）
-- [ ] AI 限流和用量统计验证
-- [ ] 安全测试（API Key 保护、对话隔离、笔记权限）
-- [ ] 性能测试（AI 响应时间、并发调用）
-- [ ] Bug 修复和优化
