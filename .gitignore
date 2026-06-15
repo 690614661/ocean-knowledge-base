@@ -1,0 +1,26 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Backend
+ocean-server/target/
+ocean-server/upload/
+*.class
+*.jar
+*.war
+
+# Frontend
+ocean-web/node_modules/
+ocean-web/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Env
+.env
+.env.local
