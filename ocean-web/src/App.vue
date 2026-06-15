@@ -1,61 +1,51 @@
 <template>
   <div id="app">
     <a-layout style="min-height: 100vh">
-      <!-- 海洋主题导航栏（登录页不显示） -->
+      <!-- 导航栏（登录页不显示） -->
       <a-layout-header v-if="!isLoginPage" class="app-header">
         <div class="header-inner">
-          <div class="header-left">
-            <router-link to="/" class="logo">
-              <span class="logo-icon">🌊</span>
-              <span class="logo-text">海洋生物知识库</span>
+          <router-link to="/" class="logo">
+            <span class="logo-icon">🌊</span>
+            <span class="logo-text">海洋生物知识库</span>
+          </router-link>
+
+          <nav class="nav-links">
+            <router-link to="/" class="nav-item" :class="{ active: currentPath === '/' }">
+              <home-outlined /> 首页
             </router-link>
-            <a-menu
-              v-model:selectedKeys="selectedKeys"
-              theme="dark"
-              mode="horizontal"
-              class="nav-menu"
-              @click="onMenuClick"
-            >
-              <a-menu-item key="home">
-                <home-outlined /> 首页
-              </a-menu-item>
-              <a-menu-item key="notes">
-                <read-outlined /> 公开笔记
-              </a-menu-item>
-              <a-menu-item v-if="user.token" key="ai">
-                <robot-outlined /> AI 问答
-              </a-menu-item>
-              <a-menu-item v-if="user.token && user.role === 'admin'" key="admin">
-                <setting-outlined /> 管理后台
-              </a-menu-item>
-            </a-menu>
-          </div>
+            <router-link to="/notes" class="nav-item" :class="{ active: currentPath.startsWith('/notes') }">
+              <read-outlined /> 公开笔记
+            </router-link>
+            <router-link v-if="user.token" to="/ai" class="nav-item" :class="{ active: currentPath.startsWith('/ai') }">
+              <robot-outlined /> AI 问答
+            </router-link>
+            <router-link v-if="user.token && user.role === 'admin'" to="/admin" class="nav-item" :class="{ active: currentPath.startsWith('/admin') }">
+              <setting-outlined /> 管理后台
+            </router-link>
+          </nav>
+
           <div class="header-right">
             <div class="school-badge" title="广东海洋大学">
               <span class="school-text">GDOU</span>
             </div>
             <template v-if="user.token">
               <div class="user-info">
-                <a-avatar :size="32" class="user-avatar">{{ user.name?.charAt(0) }}</a-avatar>
+                <a-avatar :size="30" class="user-avatar">{{ user.name?.charAt(0) }}</a-avatar>
                 <span class="user-name">{{ user.name }}</span>
               </div>
-              <a-button class="logout-btn" @click="logout">退出登录</a-button>
+              <a-button class="logout-btn" size="small" @click="logout">退出</a-button>
             </template>
             <template v-else>
-              <a-button type="primary" class="login-btn" @click="toLogin">
-                登录
-              </a-button>
+              <a-button type="primary" class="login-btn" size="small" @click="toLogin">登录</a-button>
             </template>
           </div>
         </div>
       </a-layout-header>
 
-      <!-- 主线 -->
       <a-layout-content class="app-content" :class="{ 'app-content--full': isLoginPage }">
         <router-view />
       </a-layout-content>
 
-      <!-- 页脚（登录页不显示） -->
       <a-layout-footer v-if="!isLoginPage" class="app-footer">
         <div class="footer-wave"></div>
         <div class="footer-content">
@@ -76,7 +66,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue'
+import { defineComponent, computed } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
@@ -91,28 +81,9 @@ export default defineComponent({
     const store = useStore()
     const router = useRouter()
     const route = useRoute()
-    const selectedKeys = ref<string[]>(['home'])
     const user = computed(() => store.state.user)
     const isLoginPage = computed(() => route.path === '/login')
-
-    // 根据当前路由高亮菜单
-    watch(() => route.path, (path) => {
-      if (path === '/') selectedKeys.value = ['home']
-      else if (path.startsWith('/notes')) selectedKeys.value = ['notes']
-      else if (path.startsWith('/ai')) selectedKeys.value = ['ai']
-      else if (path.startsWith('/admin')) selectedKeys.value = ['admin']
-      else if (path.startsWith('/search')) selectedKeys.value = ['home']
-    }, { immediate: true })
-
-    // 统一菜单点击导航
-    const onMenuClick = ({ key }: { key: string }) => {
-      switch (key) {
-        case 'home': router.push('/'); break
-        case 'notes': router.push('/notes'); break
-        case 'ai': router.push('/ai'); break
-        case 'admin': router.push('/admin'); break
-      }
-    }
+    const currentPath = computed(() => route.path)
 
     const toLogin = () => router.push('/login')
 
@@ -122,7 +93,7 @@ export default defineComponent({
           headers: { token: store.state.user.token }
         })
       } catch {
-        // ignore logout error
+        // ignore
       } finally {
         store.commit('setUser', {})
         sessionStorage.removeItem('user')
@@ -130,15 +101,15 @@ export default defineComponent({
       }
     }
 
-    return { selectedKeys, user, logout, isLoginPage, onMenuClick, toLogin }
+    return { user, logout, isLoginPage, currentPath, toLogin }
   }
 })
 </script>
 
 <style scoped>
 .app-header {
-  height: 64px;
-  line-height: 64px;
+  height: 56px;
+  line-height: 56px;
   padding: 0;
   background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 50%, #0d2842 100%);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
@@ -151,86 +122,83 @@ export default defineComponent({
 .header-inner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 100%;
-}
-
-.header-left {
+  padding: 0 20px;
   display: flex;
   align-items: center;
   height: 100%;
+  gap: 8px;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   text-decoration: none;
-  margin-right: 32px;
+  flex-shrink: 0;
 }
 
 .logo-icon {
-  font-size: 28px;
-  animation: logoFloat 3s ease-in-out infinite;
-}
-
-@keyframes logoFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  font-size: 22px;
 }
 
 .logo-text {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   background: linear-gradient(90deg, #69b1ff, #36cfc9);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  white-space: nowrap;
 }
 
-.nav-menu {
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 auto 0 24px;
   flex: 1;
-  background: transparent !important;
-  border: none;
-  height: 100%;
 }
 
-.nav-menu :deep(.ant-menu-item) {
-  color: rgba(255, 255, 255, 0.7) !important;
-  font-size: 14px;
-  padding: 0 16px;
-  border-bottom: 2px solid transparent !important;
-  transition: all 0.3s ease;
+.nav-item {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  padding: 0 14px;
+  height: 56px;
+  line-height: 56px;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.nav-menu :deep(.ant-menu-item:hover) {
-  color: #fff !important;
-  border-bottom-color: #1677ff !important;
+.nav-item:hover {
+  color: #fff;
+  border-bottom-color: #1677ff;
 }
 
-.nav-menu :deep(.ant-menu-item-selected) {
-  color: #fff !important;
-  border-bottom-color: #1677ff !important;
+.nav-item.active {
+  color: #fff;
+  border-bottom-color: #1677ff;
   font-weight: 600;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .school-badge {
-  padding: 2px 12px;
-  border: 1px solid rgba(54, 207, 201, 0.4);
+  padding: 2px 10px;
+  border: 1px solid rgba(54, 207, 201, 0.35);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 1px;
-  color: #36cfc9;
   cursor: default;
 }
 
@@ -244,38 +212,39 @@ export default defineComponent({
 .user-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .user-avatar {
   background: linear-gradient(135deg, #1677ff, #36cfc9);
   color: #fff;
   font-weight: 600;
-  cursor: pointer;
+  font-size: 12px;
 }
 
 .user-name {
   color: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .login-btn {
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 500;
-  height: 36px;
-  padding: 0 20px;
+  height: 32px;
+  padding: 0 16px;
   background: linear-gradient(135deg, #1677ff, #4096ff);
   border: none;
   box-shadow: 0 4px 12px rgba(22, 119, 255, 0.3);
+  font-size: 13px;
 }
 
 .logout-btn {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: rgba(255, 255, 255, 0.75);
-  border-radius: 8px;
-  height: 36px;
-  font-size: 13px;
+  border-radius: 6px;
+  height: 32px;
+  font-size: 12px;
 }
 
 .logout-btn:hover {
@@ -299,7 +268,7 @@ export default defineComponent({
 }
 
 .footer-wave {
-  height: 8px;
+  height: 6px;
   background: linear-gradient(90deg, #1677ff, #36cfc9, #1677ff);
   opacity: 0.6;
 }
@@ -307,7 +276,7 @@ export default defineComponent({
 .footer-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 20px;
   text-align: center;
 }
 
@@ -318,7 +287,7 @@ export default defineComponent({
 }
 
 .footer-divider {
-  margin: 0 12px;
+  margin: 0 10px;
   color: rgba(255, 255, 255, 0.2);
 }
 
