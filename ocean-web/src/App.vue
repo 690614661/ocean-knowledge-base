@@ -1,8 +1,8 @@
 <template>
   <div id="app">
     <a-layout style="min-height: 100vh">
-      <!-- 海洋主题导航栏 -->
-      <a-layout-header class="app-header">
+      <!-- 海洋主题导航栏（登录页不显示） -->
+      <a-layout-header v-if="!isLoginPage" class="app-header">
         <div class="header-inner">
           <div class="header-left">
             <router-link to="/" class="logo">
@@ -47,12 +47,12 @@
       </a-layout-header>
 
       <!-- 主线 -->
-      <a-layout-content class="app-content">
+      <a-layout-content class="app-content" :class="{ 'app-content--full': isLoginPage }">
         <router-view />
       </a-layout-content>
 
-      <!-- 页脚 -->
-      <a-layout-footer class="app-footer">
+      <!-- 页脚（登录页不显示） -->
+      <a-layout-footer v-if="!isLoginPage" class="app-footer">
         <div class="footer-wave"></div>
         <div class="footer-content">
           <div class="footer-links">
@@ -89,6 +89,7 @@ export default defineComponent({
     const route = useRoute()
     const selectedKeys = ref<string[]>(['home'])
     const user = computed(() => store.state.user)
+    const isLoginPage = computed(() => route.path === '/login')
 
     // 根据当前路由高亮菜单
     watch(() => route.path, (path) => {
@@ -251,6 +252,10 @@ export default defineComponent({
 .app-content {
   min-height: calc(100vh - 134px);
   background: linear-gradient(180deg, #e8f4fd 0%, #f0f9ff 50%, #f5faff 100%);
+}
+
+.app-content--full {
+  min-height: 100vh;
 }
 
 .app-footer {

@@ -117,7 +117,7 @@ export default defineComponent({
 
     const renderMarkdown = (content: string) => {
       try {
-        return marked(content || '')
+        return marked.parse(content || '')
       } catch {
         return content
       }
