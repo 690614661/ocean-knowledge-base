@@ -106,7 +106,7 @@
             <version>${jjwt.version}</version>
         </dependency>
 
-        <!-- JAXB for JDK 8+ (兼容 JDK 11+/IDEA 高版�? -->
+        <!-- JAXB for JDK 8+ (兼容 JDK 11+/IDEA 高版�? -->
         <dependency>
             <groupId>javax.xml.bind</groupId>
             <artifactId>jaxb-api</artifactId>
@@ -181,6 +181,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <classifier>exec</classifier>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>

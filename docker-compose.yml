@@ -13,7 +13,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
       - ./ocean-server/src/main/resources/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake
     networks:
       - ocean-network
 

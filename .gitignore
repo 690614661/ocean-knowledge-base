@@ -1,4 +1,4 @@
-# IDE
+﻿# IDE
 .idea/
 *.iml
 *.ipr
@@ -29,3 +29,9 @@ Thumbs.db
 
 # Project memory
 PROJECT_MEMORY.md
+
+# Temp files
+redis-local/
+*.err
+serve.js
+*.bak
