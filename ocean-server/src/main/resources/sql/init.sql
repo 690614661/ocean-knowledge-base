@@ -1,4 +1,4 @@
-﻿-- 海洋生物知识�?数据库初始化脚本
+\xef\xbb\xbf﻿-- 海洋生物知识�?数据库初始化脚本
 -- Database: ocean_knowledge
 
 CREATE DATABASE IF NOT EXISTS ocean_knowledge DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
