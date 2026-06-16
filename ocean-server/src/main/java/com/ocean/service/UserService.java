@@ -123,7 +123,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
                 user.setRole(req.getRole());
             }
             if (StringUtils.hasText(req.getPassword())) {
-                user.setPassword(Md5Util.encrypt(req.getPassword()));
+            user.setPassword(BcryptUtil.encrypt(req.getPassword()));
             }
             this.updateById(user);
         }

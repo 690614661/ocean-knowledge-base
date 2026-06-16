@@ -1,8 +1,8 @@
-# 海洋生物知识库 - 启动说明
+﻿# 娴锋磱鐢熺墿鐭ヨ瘑搴?- 鍚姩璇存槑
 
-## 1. 环境要求
+## 1. 鐜瑕佹眰
 
-| 组件 | 版本要求 |
+| 缁勪欢 | 鐗堟湰瑕佹眰 |
 |------|---------|
 | JDK | 1.8 |
 | Maven | 3.6+ |
@@ -12,31 +12,31 @@
 | ElasticSearch | 7.17.x |
 | RocketMQ | 5.1.x |
 
-## 2. 方式一：本地开发启动
+## 2. 鏂瑰紡涓€锛氭湰鍦板紑鍙戝惎鍔?
 
-### 2.1 启动中间件
+### 2.1 鍚姩涓棿浠?
 
-先确保本地已安装并启动 MySQL、Redis、ElasticSearch、RocketMQ。
+鍏堢‘淇濇湰鍦板凡瀹夎骞跺惎鍔?MySQL銆丷edis銆丒lasticSearch銆丷ocketMQ銆?
 
-### 2.2 初始化数据库
+### 2.2 鍒濆鍖栨暟鎹簱
 
 ```bash
-# 登录 MySQL，执行初始化脚本
+# 鐧诲綍 MySQL锛屾墽琛屽垵濮嬪寲鑴氭湰
 mysql -u root -p < ocean-server/src/main/resources/sql/init.sql
 ```
 
-脚本会自动创建 `ocean_knowledge` 数据库、9 张表，并插入管理员初始账号。
+鑴氭湰浼氳嚜鍔ㄥ垱寤?`ocean_knowledge` 鏁版嵁搴撱€? 寮犺〃锛屽苟鎻掑叆绠＄悊鍛樺垵濮嬭处鍙枫€?
 
-### 2.3 配置后端
+### 2.3 閰嶇疆鍚庣
 
-编辑 `ocean-server/src/main/resources/application-dev.yml`，按实际环境修改：
+缂栬緫 `ocean-server/src/main/resources/application-dev.yml`锛屾寜瀹為檯鐜淇敼锛?
 
 ```yaml
 spring:
   datasource:
     url: jdbc:mysql://localhost:3306/ocean_knowledge?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8mb4
     username: root
-    password: 你的MySQL密码    # 默认 root
+    password: 浣犵殑MySQL瀵嗙爜    # 榛樿 root
   redis:
     host: localhost
     port: 6379
@@ -46,28 +46,28 @@ spring:
     name-server: localhost:9876
 ```
 
-**AI 功能配置**（可选，不配置时 AI 接口会报错但不影响其他功能）：
+**AI 鍔熻兘閰嶇疆**锛堝彲閫夛紝涓嶉厤缃椂 AI 鎺ュ彛浼氭姤閿欎絾涓嶅奖鍝嶅叾浠栧姛鑳斤級锛?
 
 ```yaml
 ai:
   deepseek:
-    api-key: 你的DeepSeek API Key
+    api-key: 浣犵殑DeepSeek API Key
 ```
 
-也可通过环境变量设置：`set DEEPSEEK_API_KEY=sk-xxx`
+涔熷彲閫氳繃鐜鍙橀噺璁剧疆锛歚set DEEPSEEK_API_KEY=sk-xxx`
 
-### 2.4 启动后端
+### 2.4 鍚姩鍚庣
 
 ```bash
 cd ocean-server
 mvn spring-boot:run
 ```
 
-后端启动成功后访问：`http://localhost:8080`
+鍚庣鍚姩鎴愬姛鍚庤闂細`http://localhost:8080`
 
-Swagger API 文档：`http://localhost:8080/doc.html`
+Swagger API 鏂囨。锛歚http://localhost:8080/doc.html`
 
-### 2.5 启动前端
+### 2.5 鍚姩鍓嶇
 
 ```bash
 cd ocean-web
@@ -75,11 +75,11 @@ npm install
 npm run dev
 ```
 
-前端开发服务器启动后访问：`http://localhost:3000`
+鍓嶇寮€鍙戞湇鍔″櫒鍚姩鍚庤闂細`http://localhost:3000`
 
-## 3. 方式二：Docker Compose 一键部署
+## 3. 鏂瑰紡浜岋細Docker Compose 涓€閿儴缃?
 
-### 3.1 构建前端
+### 3.1 鏋勫缓鍓嶇
 
 ```bash
 cd ocean-web
@@ -88,7 +88,7 @@ npm run build
 cd ..
 ```
 
-### 3.2 构建后端 JAR
+### 3.2 鏋勫缓鍚庣 JAR
 
 ```bash
 cd ocean-server
@@ -96,7 +96,7 @@ mvn clean package -DskipTests
 cd ..
 ```
 
-### 3.3 配置 AI Key（可选）
+### 3.3 閰嶇疆 AI Key锛堝彲閫夛級
 
 ```bash
 # Windows PowerShell
@@ -106,50 +106,50 @@ $env:DEEPSEEK_API_KEY="sk-xxx"
 export DEEPSEEK_API_KEY=sk-xxx
 ```
 
-### 3.4 一键启动
+### 3.4 涓€閿惎鍔?
 
 ```bash
 docker-compose up -d
 ```
 
-启动完成后访问：`http://localhost`
+鍚姩瀹屾垚鍚庤闂細`http://localhost`
 
-### 3.5 查看日志
+### 3.5 鏌ョ湅鏃ュ織
 
 ```bash
-# 查看所有服务状态
+# 鏌ョ湅鎵€鏈夋湇鍔＄姸鎬?
 docker-compose ps
 
-# 查看后端日志
+# 鏌ョ湅鍚庣鏃ュ織
 docker-compose logs -f ocean-server
 
-# 停止所有服务
+# 鍋滄鎵€鏈夋湇鍔?
 docker-compose down
 ```
 
-## 4. 默认账号
+## 4. 榛樿璐﹀彿
 
-| 角色 | 登录名 | 密码 |
+| 瑙掕壊 | 鐧诲綍鍚?| 瀵嗙爜 |
 |------|--------|------|
-| 管理员 | admin | admin123 |
+| 绠＄悊鍛?| admin | admin123 |
 
-> 密码使用 MD5 + 盐值 `ocean_knowledge_salt_2026` 加密存储。
+> 瀵嗙爜浣跨敤 MD5 + 鐩愬€?`ocean_knowledge_salt_2026` 鍔犲瘑瀛樺偍銆?
 
-## 5. 服务端口一览
+## 5. 鏈嶅姟绔彛涓€瑙?
 
-| 服务 | 本地开发端口 | Docker 端口 |
+| 鏈嶅姟 | 鏈湴寮€鍙戠鍙?| Docker 绔彛 |
 |------|------------|------------|
-| 前端 (Vue) | 3000 | 80 (Nginx) |
-| 后端 (Spring Boot) | 8080 | 8080 |
+| 鍓嶇 (Vue) | 3000 | 80 (Nginx) |
+| 鍚庣 (Spring Boot) | 8080 | 8080 |
 | MySQL | 3306 | 3306 |
 | Redis | 6379 | 6379 |
 | ElasticSearch | 9200 | 9200 |
 | RocketMQ NameServer | 9876 | 9876 |
 | RocketMQ Broker | 10911 | 10911 |
 
-## 6. ElasticSearch 索引初始化
+## 6. ElasticSearch 绱㈠紩鍒濆鍖?
 
-首次使用全文检索功能前，需手动创建 ES 索引：
+棣栨浣跨敤鍏ㄦ枃妫€绱㈠姛鑳藉墠锛岄渶鎵嬪姩鍒涘缓 ES 绱㈠紩锛?
 
 ```bash
 curl -X PUT "http://localhost:9200/doc_index" -H "Content-Type: application/json" -d '{
@@ -163,7 +163,7 @@ curl -X PUT "http://localhost:9200/doc_index" -H "Content-Type: application/json
 }'
 ```
 
-> 需要 ES 安装 IK 分词器插件。如未安装，可将 analyzer 改为 `standard`：
+> 闇€瑕?ES 瀹夎 IK 鍒嗚瘝鍣ㄦ彃浠躲€傚鏈畨瑁咃紝鍙皢 analyzer 鏀逛负 `standard`锛?
 > ```bash
 > curl -X PUT "http://localhost:9200/doc_index" -H "Content-Type: application/json" -d '{
 >   "mappings": {
@@ -176,22 +176,24 @@ curl -X PUT "http://localhost:9200/doc_index" -H "Content-Type: application/json
 > }'
 > ```
 
-## 7. 常见问题
+## 7. 甯歌闂
 
-### Q: 后端启动报 `Communications link failure`
-**A**: MySQL 未启动或连接配置错误，检查 `application-dev.yml` 中的数据库地址和密码。
+### Q: 鍚庣鍚姩鎶?`Communications link failure`
+**A**: MySQL 鏈惎鍔ㄦ垨杩炴帴閰嶇疆閿欒锛屾鏌?`application-dev.yml` 涓殑鏁版嵁搴撳湴鍧€鍜屽瘑鐮併€?
 
-### Q: 后端启动报 `Unable to connect to Redis`
-**A**: Redis 未启动，执行 `redis-server` 启动 Redis。
+### Q: 鍚庣鍚姩鎶?`Unable to connect to Redis`
+**A**: Redis 鏈惎鍔紝鎵ц `redis-server` 鍚姩 Redis銆?
 
-### Q: AI 问答功能报错
-**A**: 需要配置 DeepSeek API Key。在 `application-dev.yml` 中设置 `ai.deepseek.api-key`，或通过环境变量 `DEEPSEEK_API_KEY` 传入。不配置时其他功能正常使用。
+### Q: AI 闂瓟鍔熻兘鎶ラ敊
+**A**: 闇€瑕侀厤缃?DeepSeek API Key銆傚湪 `application-dev.yml` 涓缃?`ai.deepseek.api-key`锛屾垨閫氳繃鐜鍙橀噺 `DEEPSEEK_API_KEY` 浼犲叆銆備笉閰嶇疆鏃跺叾浠栧姛鑳芥甯镐娇鐢ㄣ€?
 
-### Q: 搜索功能报错
-**A**: 需要启动 ElasticSearch 并创建 `doc_index` 索引（见第 6 节）。
+### Q: 鎼滅储鍔熻兘鎶ラ敊
+**A**: 闇€瑕佸惎鍔?ElasticSearch 骞跺垱寤?`doc_index` 绱㈠紩锛堣绗?6 鑺傦級銆?
 
-### Q: Docker 启动后 MySQL 初始化失败
-**A**: 如果数据卷已存在旧数据，MySQL 不会重新执行 init.sql。执行 `docker-compose down -v` 删除数据卷后重新启动。
+### Q: Docker 鍚姩鍚?MySQL 鍒濆鍖栧け璐?
+**A**: 濡傛灉鏁版嵁鍗峰凡瀛樺湪鏃ф暟鎹紝MySQL 涓嶄細閲嶆柊鎵ц init.sql銆傛墽琛?`docker-compose down -v` 鍒犻櫎鏁版嵁鍗峰悗閲嶆柊鍚姩銆?
 
-### Q: 前端页面空白
-**A**: 确保后端已启动，且前端代理配置正确。开发模式下前端通过 `vue.config.js` 中的 proxy 将 `/api` 请求代理到 `http://localhost:8080`。
+### Q: 鍓嶇椤甸潰绌虹櫧
+**A**: 纭繚鍚庣宸插惎鍔紝涓斿墠绔唬鐞嗛厤缃纭€傚紑鍙戞ā寮忎笅鍓嶇閫氳繃 `vue.config.js` 涓殑 proxy 灏?`/api` 璇锋眰浠ｇ悊鍒?`http://localhost:8080`銆?
+
+
