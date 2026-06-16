@@ -106,7 +106,7 @@
             <version>${jjwt.version}</version>
         </dependency>
 
-        <!-- JAXB for JDK 8+ (兼容 JDK 11+/IDEA 高版本) -->
+        <!-- JAXB for JDK 8+ (兼容 JDK 11+/IDEA 高版�? -->
         <dependency>
             <groupId>javax.xml.bind</groupId>
             <artifactId>jaxb-api</artifactId>
@@ -163,6 +163,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>1.18.30</version>
             <optional>true</optional>
         </dependency>
 
