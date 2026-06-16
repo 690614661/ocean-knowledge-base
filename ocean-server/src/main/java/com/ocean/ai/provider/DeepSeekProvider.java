@@ -7,18 +7,24 @@ import com.ocean.ai.model.AiRequest;
 import com.ocean.ai.model.AiResponse;
 import com.ocean.ai.model.ChatMessage;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestTemplate;
 
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
+import javax.annotation.PostConstruct;
 
 @Slf4j
 @Component
 public class DeepSeekProvider implements AiProvider {
 
-    @Value("${ai.deepseek.api-key}")
+    @Value("${DEEPSEEK_API_KEY:}")
     private String apiKey;
 
     @Value("${ai.deepseek.base-url}")
@@ -33,61 +39,71 @@ public class DeepSeekProvider implements AiProvider {
     @Value("${ai.deepseek.temperature}")
     private Double temperature;
 
-    @Value("${ai.deepseek.timeout}")
+    @Value("${ai.deepseek.timeout:60}")
     private Integer timeout;
 
-    private final OkHttpClient client = new OkHttpClient.Builder()
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .build();
+    private RestTemplate restTemplate;
+
+    @PostConstruct
+    public void init() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        int ms = timeout * 1000;
+        factory.setConnectTimeout(ms);
+        factory.setReadTimeout(ms);
+        this.restTemplate = new RestTemplate(factory);
+        log.info("DeepSeekProvider initialized, apiKey={}", apiKey != null && !apiKey.isEmpty() ? "***set***" : "EMPTY");
+    }
 
     @Override
     public AiResponse chat(AiRequest request) {
         long startTime = System.currentTimeMillis();
+        Exception lastException = null;
 
-        try {
-            JSONObject body = new JSONObject();
-            body.put("model", request.getModel() != null ? request.getModel() : defaultModel);
-            body.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : maxTokens);
-            body.put("temperature", request.getTemperature() != null ? request.getTemperature() : temperature);
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("model", request.getModel() != null ? request.getModel() : defaultModel);
+                body.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : maxTokens);
+                body.put("temperature", request.getTemperature() != null ? request.getTemperature() : temperature);
 
-            JSONArray messages = new JSONArray();
+                JSONArray messages = new JSONArray();
 
-            if (request.getSystemPrompt() != null) {
-                JSONObject sysMsg = new JSONObject();
-                sysMsg.put("role", "system");
-                sysMsg.put("content", request.getSystemPrompt());
-                messages.add(sysMsg);
-            }
-
-            if (request.getMessages() != null) {
-                for (ChatMessage msg : request.getMessages()) {
-                    JSONObject msgObj = new JSONObject();
-                    msgObj.put("role", msg.getRole());
-                    msgObj.put("content", msg.getContent());
-                    messages.add(msgObj);
+                if (request.getSystemPrompt() != null) {
+                    JSONObject sysMsg = new JSONObject();
+                    sysMsg.put("role", "system");
+                    sysMsg.put("content", request.getSystemPrompt());
+                    messages.add(sysMsg);
                 }
-            }
 
-            body.put("messages", messages);
+                if (request.getMessages() != null) {
+                    for (ChatMessage msg : request.getMessages()) {
+                        JSONObject msgObj = new JSONObject();
+                        msgObj.put("role", msg.getRole());
+                        msgObj.put("content", msg.getContent());
+                        messages.add(msgObj);
+                    }
+                }
 
-            Request httpRequest = new Request.Builder()
-                    .url(baseUrl + "/chat/completions")
-                    .addHeader("Authorization", "Bearer " + apiKey)
-                    .addHeader("Content-Type", "application/json")
-                    .post(RequestBody.create(body.toJSONString(), MediaType.parse("application/json")))
-                    .build();
+                body.put("messages", messages);
 
-            try (Response response = client.newCall(httpRequest).execute()) {
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.setBearerAuth(apiKey);
+
+                HttpEntity<String> entity = new HttpEntity<>(body.toJSONString(), headers);
+
+                ResponseEntity<String> response = restTemplate.exchange(
+                        baseUrl + "/chat/completions",
+                        HttpMethod.POST,
+                        entity,
+                        String.class
+                );
+
                 long latency = System.currentTimeMillis() - startTime;
-                String responseBody = response.body() != null ? response.body().string() : "";
+                String responseBody = response.getBody();
 
-                if (!response.isSuccessful()) {
-                    log.error("DeepSeek API调用失败: status={}, body={}", response.code(), responseBody);
-                    AiResponse aiResponse = new AiResponse();
-                    aiResponse.setProvider(getName());
-                    aiResponse.setLatencyMs(latency);
+                if (!response.getStatusCode().is2xxSuccessful()) {
+                    log.error("DeepSeek API调用失败: status={}, body={}", response.getStatusCode(), responseBody);
                     throw new RuntimeException("AI服务暂时不可用");
                 }
 
@@ -107,11 +123,17 @@ public class DeepSeekProvider implements AiProvider {
                 aiResponse.setLatencyMs(latency);
 
                 return aiResponse;
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("DeepSeek API第{}/2次调用失败: {}", attempt, e.getMessage());
+                if (attempt < 2) {
+                    try { Thread.sleep(2000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
+                }
             }
-        } catch (IOException e) {
-            log.error("DeepSeek API调用异常", e);
-            throw new RuntimeException("AI响应超时，请稍后重试");
         }
+
+        log.error("DeepSeek API两次调用均失败", lastException);
+        throw new RuntimeException("AI响应超时，请稍后重试");
     }
 
     @Override
