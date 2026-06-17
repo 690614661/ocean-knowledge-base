@@ -4,24 +4,15 @@ import com.ocean.common.CommonResp;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Api(tags = "全文检索")
 @Slf4j
@@ -30,7 +21,10 @@ import java.util.Map;
 public class SearchController {
 
     @Autowired
-    private RestHighLevelClient esClient;
+    private RestTemplate restTemplate;
+
+    @Value("${spring.elasticsearch.uris:http://localhost:9200}")
+    private String esUrl;
 
     @ApiOperation("全文检索")
     @GetMapping("")
@@ -38,47 +32,86 @@ public class SearchController {
                                                     @RequestParam(defaultValue = "1") int page,
                                                     @RequestParam(defaultValue = "10") int size) {
         try {
-            SearchRequest searchRequest = new SearchRequest("doc_index");
-            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            // 构建 ES 查询
+            Map<String, Object> queryBody = new HashMap<>();
+            Map<String, Object> query = new HashMap<>();
+            Map<String, Object> multiMatch = new HashMap<>();
+            multiMatch.put("query", keyword);
+            multiMatch.put("fields", Arrays.asList("name", "content"));
+            query.put("multi_match", multiMatch);
 
-            sourceBuilder.query(QueryBuilders.multiMatchQuery(keyword, "name", "content"));
-            sourceBuilder.from((page - 1) * size);
-            sourceBuilder.size(size);
+            Map<String, Object> highlight = new HashMap<>();
+            Map<String, Object> highlightFields = new HashMap<>();
+            Map<String, Object> nameHl = new HashMap<>();
+            nameHl.put("pre_tags", new String[]{"<em style='color:#dd4b39'>"});
+            nameHl.put("post_tags", new String[]{"</em>"});
+            Map<String, Object> contentHl = new HashMap<>();
+            contentHl.put("pre_tags", new String[]{"<em style='color:#dd4b39'>"});
+            contentHl.put("post_tags", new String[]{"</em>"});
+            highlightFields.put("name", nameHl);
+            highlightFields.put("content", contentHl);
+            highlight.put("fields", highlightFields);
 
-            // 高亮
-            HighlightBuilder highlightBuilder = new HighlightBuilder();
-            highlightBuilder.field("name");
-            highlightBuilder.field("content");
-            highlightBuilder.preTags("<em style='color:#dd4b39'>");
-            highlightBuilder.postTags("</em>");
-            sourceBuilder.highlighter(highlightBuilder);
+            queryBody.put("query", query);
+            queryBody.put("highlight", highlight);
+            queryBody.put("from", (page - 1) * size);
+            queryBody.put("size", size);
 
-            searchRequest.source(sourceBuilder);
-
-            SearchResponse response = esClient.search(searchRequest, RequestOptions.DEFAULT);
+            // 调用 ES HTTP API
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.postForObject(
+                    esUrl + "/doc_index/_search",
+                    queryBody,
+                    Map.class);
 
             List<Map<String, Object>> resultList = new ArrayList<>();
-            for (SearchHit hit : response.getHits()) {
-                Map<String, Object> doc = new HashMap<>(hit.getSourceAsMap());
-                doc.put("id", hit.getId());
 
-                // 替换高亮
-                if (hit.getHighlightFields().containsKey("name")) {
-                    doc.put("name", hit.getHighlightFields().get("name").fragments()[0].string());
-                }
-                if (hit.getHighlightFields().containsKey("content")) {
-                    String content = hit.getHighlightFields().get("content").fragments()[0].string();
-                    doc.put("content", content);
-                }
+            if (response != null) {
+                Map<String, Object> hits = (Map<String, Object>) response.get("hits");
+                if (hits != null) {
+                    Map<String, Object> totalInfo = (Map<String, Object>) hits.get("total");
+                    long total = totalInfo != null ? ((Number) totalInfo.get("value")).longValue() : 0;
 
-                resultList.add(doc);
+                    List<Map<String, Object>> hitList = (List<Map<String, Object>>) hits.get("hits");
+                    if (hitList != null) {
+                        for (Map<String, Object> hit : hitList) {
+                            Map<String, Object> source = (Map<String, Object>) hit.get("_source");
+                            Map<String, Object> doc = new HashMap<>(source);
+                            doc.put("id", hit.get("_id"));
+
+                            // 替换高亮
+                            Map<String, Object> hlFields = (Map<String, Object>) hit.get("highlight");
+                            if (hlFields != null) {
+                                if (hlFields.containsKey("name")) {
+                                    List<String> hlName = (List<String>) hlFields.get("name");
+                                    if (hlName != null && !hlName.isEmpty()) {
+                                        doc.put("name", hlName.get(0));
+                                    }
+                                }
+                                if (hlFields.containsKey("content")) {
+                                    List<String> hlContent = (List<String>) hlFields.get("content");
+                                    if (hlContent != null && !hlContent.isEmpty()) {
+                                        doc.put("content", hlContent.get(0));
+                                    }
+                                }
+                            }
+
+                            resultList.add(doc);
+                        }
+                    }
+
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("total", total);
+                    result.put("list", resultList);
+
+                    return CommonResp.ok(result);
+                }
             }
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("total", response.getHits().getTotalHits().value);
-            result.put("list", resultList);
-
-            return CommonResp.ok(result);
+            Map<String, Object> emptyResult = new HashMap<>();
+            emptyResult.put("total", 0);
+            emptyResult.put("list", resultList);
+            return CommonResp.ok(emptyResult);
         } catch (Exception e) {
             log.error("搜索失败", e);
             return CommonResp.fail("搜索服务暂时不可用");

@@ -1,22 +1,13 @@
 package com.ocean.config;
 
-import org.apache.http.HttpHost;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
+/**
+ * ES 配置已迁移为 HTTP API 调用（兼容 ES 8+/9+）
+ * 相关配置见 application.yml spring.elasticsearch.uris
+ * RestTemplate bean 见 RestTemplateConfig
+ */
 @Configuration
-@Profile("prod")
 public class ElasticsearchConfig {
 
-    @Bean
-    public RestHighLevelClient restHighLevelClient() {
-        return new RestHighLevelClient(
-            RestClient.builder(
-                new HttpHost("elasticsearch", 9200, "http")
-            )
-        );
-    }
 }

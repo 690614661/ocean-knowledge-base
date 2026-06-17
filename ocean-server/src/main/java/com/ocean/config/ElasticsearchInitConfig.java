@@ -1,16 +1,15 @@
 package com.ocean.config;
 
 import lombok.extern.slf4j.Slf4j;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.GetIndexRequest;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 @Slf4j
 @Component
@@ -20,39 +19,52 @@ public class ElasticsearchInitConfig implements ApplicationRunner {
     private static final int MAX_RETRIES = 15;
     private static final long RETRY_DELAY_MS = 3000;
 
-    @Autowired
-    private RestHighLevelClient esClient;
+    private final RestTemplate restTemplate;
+    private final String esUrl;
+
+    public ElasticsearchInitConfig(RestTemplate restTemplate,
+                                   @Value("${spring.elasticsearch.uris:http://localhost:9200}") String esUrl) {
+        this.restTemplate = restTemplate;
+        this.esUrl = esUrl;
+    }
 
     @Override
     public void run(ApplicationArguments args) {
         for (int i = 1; i <= MAX_RETRIES; i++) {
             try {
-                boolean exists = esClient.indices().exists(new GetIndexRequest(INDEX_NAME), RequestOptions.DEFAULT);
-                if (!exists) {
-                    CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
-                    request.settings(Settings.builder()
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 0)
-                    );
-                    request.mapping("{\n" +
-                            "  \"properties\": {\n" +
-                            "    \"name\":     { \"type\": \"text\", \"analyzer\": \"standard\" },\n" +
-                            "    \"content\":  { \"type\": \"text\", \"analyzer\": \"standard\" },\n" +
-                            "    \"ebookId\":  { \"type\": \"long\" }\n" +
+                // 检查索引是否存在
+                try {
+                    restTemplate.getForObject(esUrl + "/" + INDEX_NAME, String.class);
+                    log.info("ES 索引 {} 已存在，跳过创建", INDEX_NAME);
+                    return;
+                } catch (Exception ex) {
+                    // 索引不存在（404），创建
+                    String mapping = "{\n" +
+                            "  \"settings\": {\n" +
+                            "    \"number_of_shards\": 1,\n" +
+                            "    \"number_of_replicas\": 0\n" +
+                            "  },\n" +
+                            "  \"mappings\": {\n" +
+                            "    \"properties\": {\n" +
+                            "      \"name\":     { \"type\": \"text\" },\n" +
+                            "      \"content\":  { \"type\": \"text\" },\n" +
+                            "      \"ebookId\":  { \"type\": \"long\" }\n" +
+                            "    }\n" +
                             "  }\n" +
-                            "}", XContentType.JSON);
-                    esClient.indices().create(request, RequestOptions.DEFAULT);
-                    log.info("ES 索引 doc_index 自动创建成功 (第{}次尝试)", i);
-                } else {
-                    log.info("ES 索引 doc_index 已存在，跳过创建");
+                            "}";
+
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    HttpEntity<String> entity = new HttpEntity<>(mapping, headers);
+
+                    restTemplate.exchange(esUrl + "/" + INDEX_NAME, HttpMethod.PUT, entity, String.class);
+                    log.info("ES 索引 {} 自动创建成功 (第{}次尝试)", INDEX_NAME, i);
+                    return;
                 }
-                return;
             } catch (Exception e) {
-                log.warn("ES 索引初始化第{}/{}次失败 (ES 可能未就绪): {}", i, MAX_RETRIES, e.getMessage());
+                log.warn("ES 索引初始化第{}/{}次失败: {}", i, MAX_RETRIES, e.getMessage());
                 if (i < MAX_RETRIES) {
-                    try {
-                        Thread.sleep(RETRY_DELAY_MS);
-                    } catch (InterruptedException ie) {
+                    try { Thread.sleep(RETRY_DELAY_MS); } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         break;
                     }

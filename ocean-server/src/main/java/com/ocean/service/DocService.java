@@ -11,15 +11,15 @@ import com.ocean.mapper.ContentMapper;
 import com.ocean.mapper.DocMapper;
 import com.ocean.util.XssFilterUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,7 +41,10 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
-    private RestHighLevelClient esClient;
+    private RestTemplate restTemplate;
+
+    @Value("${spring.elasticsearch.uris:http://localhost:9200}")
+    private String esUrl;
 
     public List<Doc> tree(Long ebookId) {
         // 尝试从缓存获取
@@ -204,10 +207,10 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
             docMap.put("content", content);
             docMap.put("ebookId", ebookId);
 
-            IndexRequest request = new IndexRequest("doc_index")
-                    .id(String.valueOf(docId))
-                    .source(docMap, XContentType.JSON);
-            esClient.index(request, RequestOptions.DEFAULT);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(docMap, headers);
+            restTemplate.put(esUrl + "/doc_index/_doc/" + docId, entity);
         } catch (Exception e) {
             log.error("ES索引同步失败: docId={}", docId, e);
         }
@@ -215,8 +218,7 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
 
     private void deleteFromEs(Long docId) {
         try {
-            DeleteRequest request = new DeleteRequest("doc_index", String.valueOf(docId));
-            esClient.delete(request, RequestOptions.DEFAULT);
+            restTemplate.delete(esUrl + "/doc_index/_doc/" + docId);
         } catch (Exception e) {
             log.error("ES索引删除失败: docId={}", docId, e);
         }
