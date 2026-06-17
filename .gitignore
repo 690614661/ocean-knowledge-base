@@ -12,6 +12,14 @@ ocean-server/upload/
 *.jar
 *.war
 
+# Config (含密码，不自动推送)
+ocean-server/src/main/resources/application-dev.yml
+ocean-server/src/main/resources/application-prod.yml
+
+# Documentation（除非手动指定）
+docs/
+RUN.md
+
 # Frontend
 ocean-web/node_modules/
 ocean-web/dist/
