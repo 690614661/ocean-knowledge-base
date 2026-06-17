@@ -4,12 +4,56 @@ server:
     context-path: /
 
 spring:
-  profiles:
-    active: dev
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
     default-property-inclusion: non_null
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/ocean_knowledge?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+    username: root
+    password: ${MYSQL_PASSWORD:smj041209}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: 6379
+  elasticsearch:
+    uris: http://${ES_HOST:localhost}:9200
+  rocketmq:
+    name-server: ${ROCKETMQ_HOST:localhost}:9876
+    producer:
+      group: ocean-producer
+
+mybatis-plus:
+  configuration:
+    log-impl: ${MYBATIS_LOG:org.apache.ibatis.logging.stdout.StdOutImpl}
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  mapper-locations: classpath:mapper/*.xml
+
+jwt:
+  secret: ${JWT_SECRET:ocean_knowledge_jwt_secret_2026}
+  expiration: 86400000
+
+salt:
+  password: ocean_knowledge_salt_2026
+
+ai:
+  provider: deepseek
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: https://api.deepseek.com
+    model: deepseek-chat
+    max-tokens: 4096
+    temperature: 0.7
+    timeout: 60
+
+file:
+  upload-path: ${UPLOAD_PATH:./upload/}
 
 cors:
   allowed-origins: http://localhost,http://localhost:80,http://localhost:3000
