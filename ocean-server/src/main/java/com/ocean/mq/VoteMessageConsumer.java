@@ -8,9 +8,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Slf4j
-// 开发环境如未启动 RocketMQ，可临时注释 @Component 注解
-//@Component
-@ConditionalOnProperty(name = "spring.rocketmq.name-server", havingValue = "localhost:9876", matchIfMissing = false)
+@Component
+@ConditionalOnProperty(name = "rocketmq.consumer.vote.enabled", havingValue = "true", matchIfMissing = false)
 @RocketMQMessageListener(topic = "VOTE_TOPIC", consumerGroup = "ocean-consumer")
 public class VoteMessageConsumer implements RocketMQListener<String> {
 

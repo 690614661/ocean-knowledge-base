@@ -38,6 +38,9 @@ public class NoteController {
                                               @RequestParam(defaultValue = "10") int size,
                                               HttpServletRequest request) {
         String token = request.getHeader("token");
+        if (token == null || !JwtUtil.validateToken(token)) {
+            return CommonResp.fail("登录已过期，请重新登录");
+        }
         Long userId = JwtUtil.getUserIdFromToken(token);
         return CommonResp.ok(noteService.myList(page, size, userId));
     }
@@ -60,6 +63,9 @@ public class NoteController {
     @PostMapping("/save")
     public CommonResp<?> save(@Validated @RequestBody NoteSaveReq req, HttpServletRequest request) {
         String token = request.getHeader("token");
+        if (token == null || !JwtUtil.validateToken(token)) {
+            return CommonResp.fail("登录已过期，请重新登录");
+        }
         Long userId = JwtUtil.getUserIdFromToken(token);
         noteService.save(req, userId);
         return CommonResp.ok("保存成功");
@@ -69,6 +75,9 @@ public class NoteController {
     @DeleteMapping("/delete/{id}")
     public CommonResp<?> delete(@PathVariable Long id, HttpServletRequest request) {
         String token = request.getHeader("token");
+        if (token == null || !JwtUtil.validateToken(token)) {
+            return CommonResp.fail("登录已过期，请重新登录");
+        }
         Long userId = JwtUtil.getUserIdFromToken(token);
         noteService.delete(id, userId);
         return CommonResp.ok("删除成功");
