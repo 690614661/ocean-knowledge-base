@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +76,14 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
 
         // 阅读数 +1
         baseMapper.incrementViewCount(id);
+
+        // 同步更新电子书阅读数
+        ebookService.incrementViewCount(doc.getEbookId());
+
+        // Redis 实时今日阅读计数（按天自动过期）
+        String todayViewKey = Constant.TODAY_VIEW_COUNT_PREFIX + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        redisTemplate.opsForValue().increment(todayViewKey);
+        redisTemplate.expire(todayViewKey, 48, java.util.concurrent.TimeUnit.HOURS);
 
         // 查询内容
         Content content = contentMapper.selectById(id);
@@ -179,6 +189,12 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
             throw new BusinessException("文档不存在");
         }
         baseMapper.incrementVoteCount(id);
+        // 同步更新电子书点赞数
+        ebookService.incrementVoteCount(doc.getEbookId());
+        // Redis 实时今日点赞计数（按天自动过期）
+        String todayVoteKey = Constant.TODAY_VOTE_COUNT_PREFIX + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        redisTemplate.opsForValue().increment(todayVoteKey);
+        redisTemplate.expire(todayVoteKey, 48, java.util.concurrent.TimeUnit.HOURS);
     }
 
     private void collectChildIds(Long parentId, List<Long> ids) {

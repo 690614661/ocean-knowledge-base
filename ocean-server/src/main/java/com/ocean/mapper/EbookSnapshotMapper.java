@@ -15,12 +15,12 @@ public interface EbookSnapshotMapper extends BaseMapper<EbookSnapshot> {
     @Select("SELECT " +
             "IFNULL(SUM(view_count), 0) AS totalViewCount, " +
             "IFNULL(SUM(vote_count), 0) AS totalVoteCount " +
-            "FROM ebook")
+            "FROM doc")
     Map<String, Object> getTotalStatistic();
 
     @Select("SELECT " +
-            "IFNULL(SUM(s.view_increase), 0) AS todayViewCount, " +
-            "IFNULL(SUM(s.vote_increase), 0) AS todayVoteCount " +
+            "IFNULL(SUM(view_increase), 0) AS todayViewCount, " +
+            "IFNULL(SUM(vote_increase), 0) AS todayVoteCount " +
             "FROM ebook_snapshot s " +
             "WHERE s.date = CURDATE()")
     Map<String, Object> getTodayStatistic();
@@ -41,4 +41,11 @@ public interface EbookSnapshotMapper extends BaseMapper<EbookSnapshot> {
             "FROM ebook_snapshot " +
             "WHERE date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)")
     Integer getYesterdayViewIncreaseInt();
+
+    @Select("SELECT " +
+            "IFNULL(SUM(view_increase), 0) AS viewIncrease, " +
+            "IFNULL(SUM(vote_increase), 0) AS voteIncrease " +
+            "FROM ebook_snapshot " +
+            "WHERE date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)")
+    Map<String, Object> getYesterdayIncrease();
 }

@@ -161,6 +161,7 @@ export default defineComponent({
     let chartInstance: any = null
 
     const hotTags = ['鲸鱼', '珊瑚礁', '深海', '海龟', '鲨鱼', '海豚']
+    let timer: ReturnType<typeof setInterval> | null = null
 
     const category1List = computed(() => categories.value.filter((c: any) => c.parent === 0))
     const category2List = computed(() => {
@@ -297,10 +298,13 @@ export default defineComponent({
       loadEbooks()
       loadCategories()
       loadStatistic()
+      // 每10秒轮询，实时刷新统计数据
+      timer = setInterval(loadStatistic, 10000)
     })
 
     onUnmounted(() => {
       if (chartInstance) chartInstance.dispose()
+      if (timer) clearInterval(timer)
     })
 
     return {

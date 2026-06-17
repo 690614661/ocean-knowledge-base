@@ -63,15 +63,9 @@ public class EbookSnapshotService extends ServiceImpl<EbookSnapshotMapper, Ebook
     }
 
     public StatisticResp getStatistic() {
-        // 尝试从缓存获取
-        Object cached = redisTemplate.opsForValue().get(Constant.CACHE_STATISTIC);
-        if (cached instanceof StatisticResp) {
-            return (StatisticResp) cached;
-        }
-
         StatisticResp resp = new StatisticResp();
 
-        // 总量
+        // 总量（从 doc 表实时读取）
         Map<String, Object> total = baseMapper.getTotalStatistic();
         int totalViewCount = total != null ? ((Number) total.getOrDefault("totalViewCount", 0)).intValue() : 0;
         int totalVoteCount = total != null ? ((Number) total.getOrDefault("totalVoteCount", 0)).intValue() : 0;
@@ -82,32 +76,43 @@ public class EbookSnapshotService extends ServiceImpl<EbookSnapshotMapper, Ebook
                 BigDecimal.valueOf(totalVoteCount).divide(BigDecimal.valueOf(totalViewCount), 1, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100)).doubleValue() : 0.0);
 
-        // 今日
-        Map<String, Object> today = baseMapper.getTodayStatistic();
-        int todayViewCount = today != null ? ((Number) today.getOrDefault("todayViewCount", 0)).intValue() : 0;
-        int todayVoteCount = today != null ? ((Number) today.getOrDefault("todayVoteCount", 0)).intValue() : 0;
+        // ===== 今日实时数据（Redis 实时计数器 + 快照保底） =====
+        String todayStr = LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+        Integer todayViewRedis = (Integer) redisTemplate.opsForValue().get(Constant.TODAY_VIEW_COUNT_PREFIX + todayStr);
+        Integer todayVoteRedis = (Integer) redisTemplate.opsForValue().get(Constant.TODAY_VOTE_COUNT_PREFIX + todayStr);
 
-        resp.setTodayViewCount(todayViewCount);
-        resp.setTodayVoteCount(todayVoteCount);
+        if (todayViewRedis == null) {
+            // Redis 中没有（例如重启后），从快照表恢复
+            Map<String, Object> todayMap = baseMapper.getTodayStatistic();
+            todayViewRedis = todayMap != null ? ((Number) todayMap.getOrDefault("todayViewCount", 0)).intValue() : 0;
+        }
+        if (todayVoteRedis == null) {
+            Map<String, Object> todayMap = baseMapper.getTodayStatistic();
+            todayVoteRedis = todayMap != null ? ((Number) todayMap.getOrDefault("todayVoteCount", 0)).intValue() : 0;
+        }
+
+        resp.setTodayViewCount(todayViewRedis);
+        resp.setTodayVoteCount(todayVoteRedis);
 
         // 预计今日阅读（按当前时间线性推算）
         int hourOfDay = java.time.LocalTime.now().getHour();
         if (hourOfDay > 0) {
-            resp.setExpectedTodayViewCount(todayViewCount * 24 / hourOfDay);
+            resp.setExpectedTodayViewCount(todayViewRedis * 24 / hourOfDay);
         } else {
-            resp.setExpectedTodayViewCount(todayViewCount);
+            resp.setExpectedTodayViewCount(todayViewRedis);
         }
 
-        // 昨日增量
-        Integer yesterdayViewIncrease = baseMapper.getYesterdayViewIncreaseInt();
-        int yvi = yesterdayViewIncrease != null ? yesterdayViewIncrease : 0;
-        resp.setViewIncreaseRate(yvi > 0 ?
-                BigDecimal.valueOf(todayViewCount - yvi).divide(BigDecimal.valueOf(yvi), 1, RoundingMode.HALF_UP)
-                        .multiply(BigDecimal.valueOf(100)).doubleValue() : 0.0);
-        resp.setVoteIncreaseRate(0.0);
+        // ===== 昨日增量 + 增长率 =====
+        Map<String, Object> yesterday = baseMapper.getYesterdayIncrease();
+        int yesterdayView = yesterday != null ? ((Number) yesterday.getOrDefault("viewIncrease", 0)).intValue() : 0;
+        int yesterdayVote = yesterday != null ? ((Number) yesterday.getOrDefault("voteIncrease", 0)).intValue() : 0;
 
-        // 缓存1分钟
-        redisTemplate.opsForValue().set(Constant.CACHE_STATISTIC, resp, 1, java.util.concurrent.TimeUnit.MINUTES);
+        resp.setViewIncreaseRate(yesterdayView > 0 ?
+                BigDecimal.valueOf(todayViewRedis - yesterdayView).divide(BigDecimal.valueOf(yesterdayView), 1, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100)).doubleValue() : 0.0);
+        resp.setVoteIncreaseRate(yesterdayVote > 0 ?
+                BigDecimal.valueOf(todayVoteRedis - yesterdayVote).divide(BigDecimal.valueOf(yesterdayVote), 1, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100)).doubleValue() : 0.0);
 
         return resp;
     }

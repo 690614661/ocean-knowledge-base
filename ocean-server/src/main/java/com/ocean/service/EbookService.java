@@ -73,6 +73,14 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
         return new PageResp<>(ebookPage.getTotal(), ebookPage.getRecords());
     }
 
+    public void incrementViewCount(Long id) {
+        baseMapper.incrementViewCount(id);
+    }
+
+    public void incrementVoteCount(Long id) {
+        baseMapper.incrementVoteCount(id);
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public void save(EbookSaveReq req) {
         Ebook ebook = new Ebook();
