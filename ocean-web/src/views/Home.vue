@@ -9,9 +9,9 @@
       </div>
       <div class="hero-content">
         <div class="hero-text">
-          <h1 class="hero-title">探索海洋奥秘</h1>
-          <p class="hero-subtitle">汇集海洋生物知识，带你领略蓝色星球的神奇世界</p>
-          <div class="hero-search">
+          <h1 ref="heroTitleRef" class="hero-title">探索海洋奥秘</h1>
+          <p ref="heroSubRef" class="hero-subtitle">汇集海洋生物知识，带你领略蓝色星球的神奇世界</p>
+          <div ref="heroSearchRef" class="hero-search">
             <a-input-search
               v-model:value="searchKeyword"
               placeholder="搜索海洋生物、生态、分类..."
@@ -21,16 +21,16 @@
               @search="onSearch"
             />
           </div>
-          <div class="hero-tags">
+          <div ref="heroTagsRef" class="hero-tags">
             <span class="hero-tag" v-for="tag in hotTags" :key="tag" @click="searchKeyword = tag; onSearch()">
               {{ tag }}
             </span>
           </div>
         </div>
         <div class="hero-visual">
-          <div class="hero-emoji">🐋</div>
-          <div class="hero-emoji hero-emoji-2">🐠</div>
-          <div class="hero-emoji hero-emoji-3">🪸</div>
+          <div ref="emoji1Ref" class="hero-emoji">🐋</div>
+          <div ref="emoji2Ref" class="hero-emoji hero-emoji-2">🐠</div>
+          <div ref="emoji3Ref" class="hero-emoji hero-emoji-3">🪸</div>
         </div>
       </div>
       <div class="hero-wave">
@@ -45,7 +45,7 @@
       <div class="stat-card-wrapper" v-for="(stat, idx) in statCards" :key="idx">
         <div class="stat-card" :style="{ '--stat-color': stat.color }">
           <div class="stat-icon" :style="{ background: stat.bg }">{{ stat.icon }}</div>
-          <div class="stat-value">{{ formatNumber(stat.value) }}</div>
+          <div class="stat-value">{{ formatNumber(stat.animatedValue) }}</div>
           <div class="stat-label">{{ stat.label }}</div>
           <div class="stat-trend" v-if="stat.trend !== undefined">
             <span :style="{ color: stat.trend >= 0 ? '#52c41a' : '#ff4d4f' }">
@@ -139,10 +139,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { defineComponent, ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ebookApi, categoryApi, snapshotApi } from '../api'
 import * as echarts from 'echarts'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   name: 'Home',
@@ -160,6 +161,30 @@ export default defineComponent({
     const chartRef = ref<HTMLElement>()
     let chartInstance: any = null
 
+    // anime.js 引用
+    const heroTitleRef = ref<HTMLElement>()
+    const heroSubRef = ref<HTMLElement>()
+    const heroSearchRef = ref<HTMLElement>()
+    const heroTagsRef = ref<HTMLElement>()
+    const emoji1Ref = ref<HTMLElement>()
+    const emoji2Ref = ref<HTMLElement>()
+    const emoji3Ref = ref<HTMLElement>()
+
+    // 动画数值（用于数字滚动）
+    const animatedValues = reactive([
+      { value: 0, target: 0 },
+      { value: 0, target: 0 },
+      { value: 0, target: 0 },
+      { value: 0, target: 0 }
+    ])
+
+    const statCards = computed(() => [
+      { icon: '📖', label: '总阅读量', value: statistic.value.totalViewCount || 0, animatedValue: animatedValues[0].value, color: '#1677ff', bg: '#e6f4ff', trend: statistic.value.viewIncreaseRate },
+      { icon: '👍', label: '总点赞量', value: statistic.value.totalVoteCount || 0, animatedValue: animatedValues[1].value, color: '#eb2f96', bg: '#fff0f6', trend: statistic.value.voteIncreaseRate },
+      { icon: '📊', label: '今日阅读', value: statistic.value.todayViewCount || 0, animatedValue: animatedValues[2].value, color: '#52c41a', bg: '#f6ffed' },
+      { icon: '🔥', label: '今日点赞', value: statistic.value.todayVoteCount || 0, animatedValue: animatedValues[3].value, color: '#fa8c16', bg: '#fff7e6' }
+    ])
+
     const hotTags = ['鲸鱼', '珊瑚礁', '深海', '海龟', '鲨鱼', '海豚']
     let timer: ReturnType<typeof setInterval> | null = null
 
@@ -169,17 +194,152 @@ export default defineComponent({
       return categories.value.filter((c: any) => c.parent === category1Id.value)
     })
 
-    const statCards = computed(() => [
-      { icon: '📖', label: '总阅读量', value: statistic.value.totalViewCount || 0, color: '#1677ff', bg: '#e6f4ff', trend: statistic.value.viewIncreaseRate },
-      { icon: '👍', label: '总点赞量', value: statistic.value.totalVoteCount || 0, color: '#eb2f96', bg: '#fff0f6', trend: statistic.value.voteIncreaseRate },
-      { icon: '📊', label: '今日阅读', value: statistic.value.todayViewCount || 0, color: '#52c41a', bg: '#f6ffed' },
-      { icon: '🔥', label: '今日点赞', value: statistic.value.todayVoteCount || 0, color: '#fa8c16', bg: '#fff7e6' }
-    ])
-
     const formatNumber = (n: number) => {
       if (n >= 10000) return (n / 10000).toFixed(1) + '万'
       return n.toLocaleString()
     }
+
+    // ====== anime.js 动画 ======
+
+    /** ① 统计卡片数字滚动 */
+    const animateNumberRoll = () => {
+      const targets = [0, 1, 2, 3] // 四张卡
+      targets.forEach(i => {
+        const targetVal = statCards.value[i].value
+        if (targetVal === 0) return
+        anime({
+          targets: animatedValues[i],
+          value: [0, targetVal],
+          round: 1,
+          duration: 1500,
+          delay: i * 150,
+          easing: 'easeOutCubic'
+        })
+      })
+    }
+
+    /** ② 英雄区 emoji 连续游动 */
+    const startEmojiFloat = () => {
+      if (!emoji1Ref.value || !emoji2Ref.value || !emoji3Ref.value) return
+
+      // 鲸鱼 — 左右摇摆 + 上下浮动
+      anime({
+        targets: emoji1Ref.value,
+        translateX: [
+          { value: [0, 30], duration: 3000, easing: 'easeInOutSine' },
+          { value: [30, -20], duration: 4000, easing: 'easeInOutSine' },
+          { value: [-20, 0], duration: 3000, easing: 'easeInOutSine' }
+        ],
+        translateY: [
+          { value: [0, -15], duration: 2500, easing: 'easeInOutQuad' },
+          { value: [-15, 10], duration: 3500, easing: 'easeInOutQuad' },
+          { value: [10, 0], duration: 2500, easing: 'easeInOutQuad' }
+        ],
+        rotate: [
+          { value: [0, 8], duration: 2000, easing: 'easeInOutSine' },
+          { value: [8, -6], duration: 3000, easing: 'easeInOutSine' },
+          { value: [-6, 0], duration: 2000, easing: 'easeInOutSine' }
+        ],
+        loop: true
+      })
+
+      // 小鱼 — 围绕游动
+      anime({
+        targets: emoji2Ref.value,
+        translateX: [
+          { value: [0, -40], duration: 3500, easing: 'easeInOutSine' },
+          { value: [-40, 25], duration: 4500, easing: 'easeInOutSine' },
+          { value: [25, 0], duration: 3500, easing: 'easeInOutSine' }
+        ],
+        translateY: [
+          { value: [0, 20], duration: 3000, easing: 'easeInOutQuad' },
+          { value: [20, -15], duration: 4000, easing: 'easeInOutQuad' },
+          { value: [-15, 0], duration: 3000, easing: 'easeInOutQuad' }
+        ],
+        loop: true
+      })
+
+      // 水母 — 缓慢上下漂浮
+      anime({
+        targets: emoji3Ref.value,
+        translateY: [
+          { value: [0, -20], duration: 2800, easing: 'easeInOutQuad' },
+          { value: [-20, 25], duration: 3800, easing: 'easeInOutQuad' },
+          { value: [25, 0], duration: 2800, easing: 'easeInOutQuad' }
+        ],
+        scale: [
+          { value: [1, 1.1], duration: 2000, easing: 'easeInOutQuad' },
+          { value: [1.1, 0.95], duration: 3000, easing: 'easeInOutQuad' },
+          { value: [0.95, 1], duration: 2000, easing: 'easeInOutQuad' }
+        ],
+        opacity: [
+          { value: [0.5, 0.8], duration: 2500, easing: 'easeInOutSine' },
+          { value: [0.8, 0.4], duration: 3500, easing: 'easeInOutSine' },
+          { value: [0.4, 0.5], duration: 2500, easing: 'easeInOutSine' }
+        ],
+        loop: true
+      })
+    }
+
+    /** ③ 电子书卡片交错弹入 */
+    const animateCardStagger = () => {
+      const cards = document.querySelectorAll('.ebook-card')
+      if (!cards.length) return
+      anime({
+        targets: cards,
+        opacity: [0, 1],
+        translateY: [40, 0],
+        scale: [0.95, 1],
+        duration: 600,
+        delay: anime.stagger(80),
+        easing: 'easeOutElastic(1, 0.6)'
+      })
+    }
+
+    /** ④ 英雄区文字淡入 */
+    const animateHeroText = () => {
+      if (heroTitleRef.value) {
+        anime({
+          targets: heroTitleRef.value,
+          opacity: [0, 1],
+          translateY: [30, 0],
+          duration: 800,
+          easing: 'easeOutCubic'
+        })
+      }
+      if (heroSubRef.value) {
+        anime({
+          targets: heroSubRef.value,
+          opacity: [0, 1],
+          translateY: [20, 0],
+          duration: 800,
+          delay: 200,
+          easing: 'easeOutCubic'
+        })
+      }
+      if (heroSearchRef.value) {
+        anime({
+          targets: heroSearchRef.value,
+          opacity: [0, 1],
+          translateY: [15, 0],
+          duration: 600,
+          delay: 400,
+          easing: 'easeOutCubic'
+        })
+      }
+      if (heroTagsRef.value) {
+        anime({
+          targets: heroTagsRef.value.querySelectorAll('.hero-tag'),
+          opacity: [0, 1],
+          translateX: [-10, 0],
+          duration: 500,
+          delay: anime.stagger(80, { start: 600 }),
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
+    // ====== 数据加载 ======
 
     const loadEbooks = async () => {
       const res: any = await ebookApi.list({
@@ -191,6 +351,10 @@ export default defineComponent({
       })
       ebooks.value = res.content.list
       total.value = res.content.total
+      // 数据加载后触发卡片动画
+      if (res.content.list?.length) {
+        nextTick(() => animateCardStagger())
+      }
     }
 
     const loadCategories = async () => {
@@ -204,8 +368,12 @@ export default defineComponent({
       try {
         const res: any = await snapshotApi.getStatistic()
         statistic.value = res.content
+        // 统计更新后触发数字滚动
+        animateNumberRoll()
       } catch {}
     }
+
+    // ====== ECharts ======
 
     const initChart = (trendList: any[]) => {
       if (!chartRef.value || !trendList.length) return
@@ -288,25 +456,33 @@ export default defineComponent({
       loadEbooks()
     }
 
-    // 监听分类筛选变化
+    // ====== Watchers ======
+
     watch(category2Id, () => {
       page.value = 1
       loadEbooks()
     })
 
-    // 统计数据变化时重新渲染图表
     watch(() => statistic.value.trendList, (trendList: any) => {
       if (trendList?.length) {
-        // 等待 DOM 更新后渲染
         setTimeout(() => initChart(trendList), 100)
       }
     }, { deep: true })
 
+    // ====== 生命周期 ======
+
     onMounted(() => {
+      // 页面入场动画
+      animateHeroText()
+
       loadEbooks()
       loadCategories()
       loadStatistic()
-      // 每10秒轮询，实时刷新统计数据
+
+      // emoji 连续游动
+      startEmojiFloat()
+
+      // 轮询
       timer = setInterval(loadStatistic, 10000)
     })
 
@@ -319,6 +495,8 @@ export default defineComponent({
       ebooks, total, page, size, searchKeyword, hotTags,
       category1Id, category2Id, category1List, category2List,
       statistic, statCards, chartRef,
+      heroTitleRef, heroSubRef, heroSearchRef, heroTagsRef,
+      emoji1Ref, emoji2Ref, emoji3Ref,
       formatNumber, loadEbooks, onSearch, onCategory1Change
     }
   }
@@ -463,7 +641,6 @@ export default defineComponent({
 
 .hero-emoji {
   font-size: 80px;
-  animation: float 4s ease-in-out infinite;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -473,7 +650,6 @@ export default defineComponent({
 
 .hero-emoji-2 {
   font-size: 50px;
-  animation: float 3.5s ease-in-out infinite reverse;
   top: 10%;
   left: 10%;
   opacity: 0.6;
@@ -481,15 +657,9 @@ export default defineComponent({
 
 .hero-emoji-3 {
   font-size: 40px;
-  animation: float 5s ease-in-out infinite;
   top: 70%;
   left: 70%;
   opacity: 0.5;
-}
-
-@keyframes float {
-  0%, 100% { transform: translate(-50%, -50%); }
-  50% { transform: translate(-50%, -60%); }
 }
 
 .hero-wave {
