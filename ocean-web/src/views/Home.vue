@@ -294,6 +294,14 @@ export default defineComponent({
       loadEbooks()
     })
 
+    // 统计数据变化时重新渲染图表
+    watch(() => statistic.value.trendList, (trendList: any) => {
+      if (trendList?.length) {
+        // 等待 DOM 更新后渲染
+        setTimeout(() => initChart(trendList), 100)
+      }
+    }, { deep: true })
+
     onMounted(() => {
       loadEbooks()
       loadCategories()
