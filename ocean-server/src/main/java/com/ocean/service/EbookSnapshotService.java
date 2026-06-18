@@ -118,6 +118,36 @@ public class EbookSnapshotService extends ServiceImpl<EbookSnapshotMapper, Ebook
     }
 
     public List<Map<String, Object>> get30DayTrend() {
-        return baseMapper.get30DayTrend();
+        List<Map<String, Object>> trend = baseMapper.get30DayTrend();
+
+        // 用 Redis 实时计数替换今日数据，让趋势图与卡片数据一致
+        String todayStr = LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+        Integer todayViewRedis = (Integer) redisTemplate.opsForValue().get(Constant.TODAY_VIEW_COUNT_PREFIX + todayStr);
+        Integer todayVoteRedis = (Integer) redisTemplate.opsForValue().get(Constant.TODAY_VOTE_COUNT_PREFIX + todayStr);
+
+        LocalDate today = LocalDate.now();
+        String todayDateStr = today.toString();
+        boolean foundToday = false;
+        for (Map<String, Object> day : trend) {
+            Object dateObj = day.get("date");
+            String dateStr = dateObj != null ? dateObj.toString() : "";
+            if (todayDateStr.equals(dateStr)) {
+                foundToday = true;
+                if (todayViewRedis != null) day.put("viewIncrease", todayViewRedis);
+                if (todayVoteRedis != null) day.put("voteIncrease", todayVoteRedis);
+                break;
+            }
+        }
+
+        // 如果快照表中没有今天的数据，但 Redis 有，则追加
+        if (!foundToday && (todayViewRedis != null && todayViewRedis > 0)) {
+            Map<String, Object> todayEntry = new java.util.HashMap<String, Object>();
+            todayEntry.put("date", todayDateStr);
+            todayEntry.put("viewIncrease", todayViewRedis);
+            todayEntry.put("voteIncrease", todayVoteRedis != null ? todayVoteRedis : 0);
+            trend.add(todayEntry);
+        }
+
+        return trend;
     }
 }

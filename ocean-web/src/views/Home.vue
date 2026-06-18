@@ -187,6 +187,7 @@ export default defineComponent({
 
     const hotTags = ['鲸鱼', '珊瑚礁', '深海', '海龟', '鲨鱼', '海豚']
     let timer: ReturnType<typeof setInterval> | null = null
+    let isFirstLoad = true
 
     const category1List = computed(() => categories.value.filter((c: any) => c.parent === 0))
     const category2List = computed(() => {
@@ -203,7 +204,7 @@ export default defineComponent({
 
     /** ① 统计卡片数字滚动 */
     const animateNumberRoll = () => {
-      const targets = [0, 1, 2, 3] // 四张卡
+      const targets = [0, 1, 2, 3]
       targets.forEach(i => {
         const targetVal = statCards.value[i].value
         if (targetVal === 0) return
@@ -215,6 +216,13 @@ export default defineComponent({
           delay: i * 150,
           easing: 'easeOutCubic'
         })
+      })
+    }
+
+    /** 轮询时直接设值，不重新滚动 */
+    const setNumberDirect = () => {
+      statCards.value.forEach((card, i) => {
+        animatedValues[i].value = card.value
       })
     }
 
@@ -368,8 +376,14 @@ export default defineComponent({
       try {
         const res: any = await snapshotApi.getStatistic()
         statistic.value = res.content
-        // 统计更新后触发数字滚动
-        animateNumberRoll()
+        if (isFirstLoad) {
+          // 首次加载——数字从0滚动到目标值
+          isFirstLoad = false
+          animateNumberRoll()
+        } else {
+          // 轮询更新——直接设为最新值，不重新滚动
+          setNumberDirect()
+        }
       } catch {}
     }
 

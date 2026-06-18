@@ -59,10 +59,10 @@
           <div class="ai-assist" style="margin-top: 12px">
             <span class="ai-assist-label">🤖 AI 辅助：</span>
             <a-space>
-              <a-button size="small" class="ai-assist-btn" @click="aiDocAssist('doc_outline')">生成大纲</a-button>
-              <a-button size="small" class="ai-assist-btn" @click="aiDocAssist('doc_expand')">扩展章节</a-button>
-              <a-button size="small" class="ai-assist-btn" @click="aiDocAssist('doc_supplement')">补充细节</a-button>
-              <a-button size="small" class="ai-assist-btn" @click="aiDocAssist('doc_polish')">润色优化</a-button>
+              <a-button size="small" class="ai-assist-btn" :loading="assisting === 'doc_outline'" :disabled="!!assisting" @click="aiDocAssist('doc_outline')">生成大纲</a-button>
+              <a-button size="small" class="ai-assist-btn" :loading="assisting === 'doc_expand'" :disabled="!!assisting" @click="aiDocAssist('doc_expand')">扩展章节</a-button>
+              <a-button size="small" class="ai-assist-btn" :loading="assisting === 'doc_supplement'" :disabled="!!assisting" @click="aiDocAssist('doc_supplement')">补充细节</a-button>
+              <a-button size="small" class="ai-assist-btn" :loading="assisting === 'doc_polish'" :disabled="!!assisting" @click="aiDocAssist('doc_polish')">润色优化</a-button>
             </a-space>
           </div>
         </a-form-item>
@@ -84,6 +84,7 @@ export default defineComponent({
     const docTree = ref<any[]>([])
     const modalVisible = ref(false)
     const form = ref<any>({})
+    const assisting = ref<string | null>(null)
     const columns = [
       { title: '名称', dataIndex: 'name', key: 'name' },
       { title: '阅读数', dataIndex: 'viewCount', key: 'viewCount', width: 80 },
@@ -135,18 +136,24 @@ export default defineComponent({
     }
 
     const aiDocAssist = async (type: string) => {
+      if (assisting.value) return
+      assisting.value = type
       const topic = form.value.name || ''
       const selectedText = form.value.content?.substring(0, 500) || ''
       try {
         const res: any = await aiApi.generate({ type, topic, selectedText })
         form.value.content = res.content.text
-        message.success('AI 生成完成')
-      } catch {}
+        message.success('🤖 AI 生成完成')
+      } catch {
+        message.error('AI 生成失败')
+      } finally {
+        assisting.value = null
+      }
     }
 
     onMounted(loadEbooks)
 
-    return { ebooks, ebookId, docTree, columns, modalVisible, form, showModal, handleSave, handleDelete, loadDocs, aiDocAssist }
+    return { ebooks, ebookId, docTree, columns, modalVisible, form, assisting, showModal, handleSave, handleDelete, loadDocs, aiDocAssist }
   }
 })
 </script>

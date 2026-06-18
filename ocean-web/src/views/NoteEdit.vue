@@ -29,16 +29,16 @@
 
       <div class="note-actions">
         <div class="ai-buttons">
-          <a-button class="ai-btn" @click="aiGenerate('note_generate')">
+          <a-button class="ai-btn" :loading="generating === 'note_generate'" :disabled="!!generating" @click="aiGenerate('note_generate')">
             🤖 AI 生成
           </a-button>
-          <a-button class="ai-btn" @click="aiGenerate('note_polish')">
+          <a-button class="ai-btn" :loading="generating === 'note_polish'" :disabled="!!generating" @click="aiGenerate('note_polish')">
             ✨ AI 润色
           </a-button>
-          <a-button class="ai-btn" @click="aiGenerate('note_expand')">
+          <a-button class="ai-btn" :loading="generating === 'note_expand'" :disabled="!!generating" @click="aiGenerate('note_expand')">
             📝 AI 扩写
           </a-button>
-          <a-button class="ai-btn" @click="aiGenerate('note_summarize')">
+          <a-button class="ai-btn" :loading="generating === 'note_summarize'" :disabled="!!generating" @click="aiGenerate('note_summarize')">
             📋 AI 总结
           </a-button>
         </div>
@@ -66,6 +66,7 @@ export default defineComponent({
     const router = useRouter()
     const form = ref<any>({ title: '', content: '', isPublic: 0 })
     const saving = ref(false)
+    const generating = ref<string | null>(null)
     const isPublic = computed({
       get: () => form.value.isPublic === 1,
       set: (val: boolean) => { form.value.isPublic = val ? 1 : 0 }
@@ -99,6 +100,8 @@ export default defineComponent({
     }
 
     const aiGenerate = async (type: string) => {
+      if (generating.value) return
+      generating.value = type
       try {
         const selectedText = window.getSelection()?.toString() || ''
         const topic = form.value.title || ''
@@ -109,10 +112,14 @@ export default defineComponent({
         })
         form.value.content = res.content.text
         message.success('🤖 AI 生成完成')
-      } catch {}
+      } catch {
+        message.error('AI 生成失败，请稍后重试')
+      } finally {
+        generating.value = null
+      }
     }
 
-    return { form, isPublic, saving, handleSave, aiGenerate }
+    return { form, isPublic, saving, generating, handleSave, aiGenerate }
   }
 })
 </script>
