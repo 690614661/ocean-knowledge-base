@@ -62,11 +62,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, computed } from 'vue'
+import { defineComponent, ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
 import { docApi } from '../api'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   name: 'EbookDetail',
@@ -87,6 +88,37 @@ export default defineComponent({
       docTree.value = res.content
     }
 
+    const animateContentIn = () => {
+      const els = document.querySelectorAll('.doc-header, .doc-body, .doc-actions')
+      if (els.length) {
+        els.forEach((el, i) => {
+          anime.set(el, { opacity: 0, translateY: 20 })
+          anime({
+            targets: el,
+            opacity: [0, 1],
+            translateY: [20, 0],
+            duration: 500,
+            delay: 80 + i * 100,
+            easing: 'easeOutCubic'
+          })
+        })
+      }
+    }
+
+    const animateSidebarIn = () => {
+      const items = document.querySelectorAll('.doc-tree .ant-tree-treenode')
+      if (items.length) {
+        anime({
+          targets: items,
+          opacity: [0, 1],
+          translateX: [-15, 0],
+          duration: 400,
+          delay: anime.stagger(50, { start: 300 }),
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
     const onDocSelect = async (selectedKeys: any[]) => {
       if (selectedKeys.length === 0) return
       const docId = selectedKeys[0]
@@ -95,6 +127,7 @@ export default defineComponent({
         const res: any = await docApi.detail(docId)
         currentDoc.value = res.content
         voted.value = false
+        nextTick(() => animateContentIn())
       } catch {
         message.error('文档加载失败')
       }
@@ -110,7 +143,11 @@ export default defineComponent({
       } catch {}
     }
 
-    onMounted(loadDocs)
+    onMounted(() => {
+      loadDocs()
+      // 目录树节点延迟动画
+      setTimeout(() => animateSidebarIn(), 500)
+    })
 
     return { docTree, currentDoc, selectedDocId, user, voted, onDocSelect, handleVote }
   }

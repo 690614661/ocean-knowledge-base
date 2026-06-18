@@ -8,7 +8,7 @@
         <div class="brand-sub">Guangdong Ocean University</div>
         <div class="brand-desc">探索海洋奥秘 · 保护蓝色星球</div>
       </div>
-      <div class="login-card">
+      <div ref="loginCardRef" class="login-card">
         <div class="login-header">
           <h2>登录</h2>
           <p>请输入账号密码</p>
@@ -29,8 +29,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref, onMounted, nextTick } from 'vue'
 import axios from 'axios'
+import anime from 'animejs/lib/anime.es.js'
+
 export default defineComponent({
   name: 'LoginPage',
   setup() {
@@ -38,6 +40,45 @@ export default defineComponent({
     const loading = ref(false)
     const errorMsg = ref('')
     const successMsg = ref('')
+    const loginCardRef = ref<HTMLElement>()
+
+    const animateFormIn = () => {
+      const els = document.querySelectorAll('.login-header, .form-group, .login-btn, .login-footer')
+      anime({
+        targets: els,
+        opacity: [0, 1],
+        translateY: [24, 0],
+        duration: 600,
+        delay: anime.stagger(120, { start: 400 }),
+        easing: 'easeOutCubic'
+      })
+      // 品牌区动画
+      anime({
+        targets: '.brand-icon',
+        scale: [0.5, 1],
+        opacity: [0, 1],
+        duration: 600,
+        easing: 'easeOutBack'
+      })
+      anime({
+        targets: '.brand-title, .brand-sub, .brand-desc',
+        opacity: [0, 1],
+        translateY: [15, 0],
+        duration: 500,
+        delay: anime.stagger(100, { start: 200 }),
+        easing: 'easeOutCubic'
+      })
+    }
+
+    const shakeCard = () => {
+      if (!loginCardRef.value) return
+      anime({
+        targets: loginCardRef.value,
+        translateX: [0, -10, 10, -5, 5, 0],
+        duration: 400,
+        easing: 'easeInOutSine'
+      })
+    }
 
     const doLogin = async () => {
       loading.value = true
@@ -48,10 +89,20 @@ export default defineComponent({
         const data = res.data
         if (data.success) {
           successMsg.value = '登录成功！'
-          sessionStorage.setItem('user', JSON.stringify(data.content))
-          window.location.href = '/'
+          // 成功动画
+          anime({
+            targets: loginCardRef.value,
+            scale: [1, 1.02, 1],
+            duration: 300,
+            easing: 'easeOutCubic'
+          })
+          setTimeout(() => {
+            sessionStorage.setItem('user', JSON.stringify(data.content))
+            window.location.href = '/'
+          }, 600)
         } else {
           errorMsg.value = data.message || '登录失败'
+          nextTick(() => shakeCard())
         }
       } catch (e: any) {
         if (e.response) {
@@ -62,10 +113,16 @@ export default defineComponent({
         } else {
           errorMsg.value = e.message
         }
+        nextTick(() => shakeCard())
       }
       loading.value = false
     }
-    return { form, loading, errorMsg, successMsg, doLogin }
+
+    onMounted(() => {
+      setTimeout(animateFormIn, 100)
+    })
+
+    return { form, loading, errorMsg, successMsg, doLogin, loginCardRef }
   }
 })
 </script>

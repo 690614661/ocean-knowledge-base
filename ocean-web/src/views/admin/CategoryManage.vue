@@ -53,9 +53,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted } from 'vue'
+import { defineComponent, ref, computed, onMounted, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { categoryApi } from '../../api'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   setup() {
@@ -72,9 +73,27 @@ export default defineComponent({
       { id: 0, name: '顶级分类', children: treeData.value }
     ])
 
+    const animateTableRows = () => {
+      nextTick(() => {
+        const rows = document.querySelectorAll('.ant-table-row')
+        if (rows.length) {
+          anime.set(rows, { opacity: 0, translateY: 12 })
+          anime({
+            targets: rows,
+            opacity: [0, 1],
+            translateY: [12, 0],
+            duration: 400,
+            delay: anime.stagger(30),
+            easing: 'easeOutCubic'
+          })
+        }
+      })
+    }
+
     const loadTree = async () => {
       const res: any = await categoryApi.tree()
       treeData.value = res.content
+      animateTableRows()
     }
 
     const showModal = (record?: any) => {

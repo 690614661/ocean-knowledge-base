@@ -8,7 +8,7 @@
       <div class="dash-card" v-for="(item, idx) in dashCards" :key="idx" :style="{ '--card-color': item.color }">
         <div class="dash-card-icon" :style="{ background: item.bg }">{{ item.icon }}</div>
         <div class="dash-card-body">
-          <div class="dash-card-value">{{ item.value }}</div>
+          <div class="dash-card-value">{{ formatNumber(item.animated.value) }}</div>
           <div class="dash-card-label">{{ item.label }}</div>
         </div>
       </div>
@@ -26,35 +26,82 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, ref, onMounted, nextTick } from 'vue'
 import { snapshotApi } from '../../api'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   name: 'AdminDashboard',
   setup() {
     const statistic = ref<any>({})
 
+    const animated = ref([
+      { value: 0 },
+      { value: 0 },
+      { value: 0 },
+      { value: 0 }
+    ])
+
     const dashCards = ref([
-      { icon: '📖', label: '总阅读量', value: 0, color: '#1677ff', bg: '#e6f4ff' },
-      { icon: '👍', label: '总点赞量', value: 0, color: '#eb2f96', bg: '#fff0f6' },
-      { icon: '📈', label: '今日阅读', value: 0, color: '#52c41a', bg: '#f6ffed' },
-      { icon: '🔥', label: '今日点赞', value: 0, color: '#fa8c16', bg: '#fff7e6' }
+      { icon: '📖', label: '总阅读量', value: 0, animated: animated.value[0], color: '#1677ff', bg: '#e6f4ff' },
+      { icon: '👍', label: '总点赞量', value: 0, animated: animated.value[1], color: '#eb2f96', bg: '#fff0f6' },
+      { icon: '📈', label: '今日阅读', value: 0, animated: animated.value[2], color: '#52c41a', bg: '#f6ffed' },
+      { icon: '🔥', label: '今日点赞', value: 0, animated: animated.value[3], color: '#fa8c16', bg: '#fff7e6' }
     ])
 
     onMounted(async () => {
       try {
         const res: any = await snapshotApi.getStatistic()
         statistic.value = res.content
-        dashCards.value = [
-          { icon: '📖', label: '总阅读量', value: res.content.totalViewCount || 0, color: '#1677ff', bg: '#e6f4ff' },
-          { icon: '👍', label: '总点赞量', value: res.content.totalVoteCount || 0, color: '#eb2f96', bg: '#fff0f6' },
-          { icon: '📈', label: '今日阅读', value: res.content.todayViewCount || 0, color: '#52c41a', bg: '#f6ffed' },
-          { icon: '🔥', label: '今日点赞', value: res.content.todayVoteCount || 0, color: '#fa8c16', bg: '#fff7e6' }
+        const vals = [
+          res.content.totalViewCount || 0,
+          res.content.totalVoteCount || 0,
+          res.content.todayViewCount || 0,
+          res.content.todayVoteCount || 0
         ]
+
+        dashCards.value = [
+          { icon: '📖', label: '总阅读量', value: vals[0], animated: animated.value[0], color: '#1677ff', bg: '#e6f4ff' },
+          { icon: '👍', label: '总点赞量', value: vals[1], animated: animated.value[1], color: '#eb2f96', bg: '#fff0f6' },
+          { icon: '📈', label: '今日阅读', value: vals[2], animated: animated.value[2], color: '#52c41a', bg: '#f6ffed' },
+          { icon: '🔥', label: '今日点赞', value: vals[3], animated: animated.value[3], color: '#fa8c16', bg: '#fff7e6' }
+        ]
+
+        // 数字滚动
+        nextTick(() => {
+          vals.forEach((target, i) => {
+            if (target > 0) {
+              animated.value[i].value = 0
+              anime({
+                targets: animated.value[i],
+                value: [0, target],
+                round: 1,
+                duration: 1200,
+                delay: i * 150,
+                easing: 'easeOutCubic'
+              })
+            }
+          })
+          // 卡片入场
+          const cards = document.querySelectorAll('.dash-card')
+          anime({
+            targets: cards,
+            opacity: [0, 1],
+            translateY: [20, 0],
+            duration: 500,
+            delay: anime.stagger(80),
+            easing: 'easeOutCubic'
+          })
+        })
       } catch {}
     })
 
-    return { statistic, dashCards }
+    const formatNumber = (n: number) => {
+      if (n >= 10000) return (n / 10000).toFixed(1) + '万'
+      return n.toLocaleString()
+    }
+
+    return { statistic, dashCards, animated, formatNumber }
   }
 })
 </script>

@@ -85,10 +85,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted } from 'vue'
+import { defineComponent, ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { noteApi } from '../api'
 import { message } from 'ant-design-vue'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   name: 'NoteList',
@@ -100,6 +101,29 @@ export default defineComponent({
     const myNotes = ref<any[]>([])
     const loading = ref(false)
     const searchKeyword = ref('')
+
+    const animateCards = () => {
+      const cards = document.querySelectorAll('.ant-list-item')
+      if (cards.length) {
+        anime.set(cards, { opacity: 0, translateY: 20 })
+        anime({
+          targets: cards,
+          opacity: [0, 1],
+          translateY: [20, 0],
+          duration: 500,
+          delay: anime.stagger(60),
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
+    watch([publicNotes, myNotes], () => {
+      nextTick(() => animateCards())
+    })
+
+    watch(activeTab, () => {
+      nextTick(() => setTimeout(animateCards, 100))
+    })
 
     const loadPublic = async () => {
       loading.value = true

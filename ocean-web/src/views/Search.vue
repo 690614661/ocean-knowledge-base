@@ -45,9 +45,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, ref, watch, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { searchApi } from '../api'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   name: 'Search',
@@ -57,6 +58,43 @@ export default defineComponent({
     const keyword = ref('')
     const results = ref<any[]>([])
     const loading = ref(false)
+
+    const animateResults = () => {
+      const cards = document.querySelectorAll('.result-card')
+      if (cards.length) {
+        anime.set(cards, { opacity: 0, translateX: 30 })
+        anime({
+          targets: cards,
+          opacity: [0, 1],
+          translateX: [30, 0],
+          duration: 500,
+          delay: anime.stagger(80),
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
+    watch(loading, () => {
+      if (!loading.value) {
+        nextTick(() => {
+          if (results.value.length > 0) {
+            animateResults()
+          } else {
+            const icon = document.querySelector('.empty-icon')
+            if (icon) {
+              anime({
+                targets: icon,
+                translateY: [0, -10, 0],
+                scale: [1, 1.1, 1],
+                duration: 2000,
+                loop: true,
+                easing: 'easeInOutSine'
+              })
+            }
+          }
+        })
+      }
+    })
 
     const onSearch = async () => {
       if (!keyword.value) return

@@ -97,6 +97,7 @@ import { defineComponent, ref, onMounted, nextTick } from 'vue'
 import { aiApi } from '../api'
 import { message } from 'ant-design-vue'
 import { marked } from 'marked'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   name: 'AiChat',
@@ -123,17 +124,79 @@ export default defineComponent({
       }
     }
 
+    const animateMessageIn = () => {
+      const rows = document.querySelectorAll('.chat-messages .message-row')
+      if (rows.length) {
+        const lastRow = rows[rows.length - 1] as HTMLElement
+        anime.set(lastRow, { opacity: 0, translateY: 20, scale: 0.98 })
+        anime({
+          targets: lastRow,
+          opacity: [0, 1],
+          translateY: [20, 0],
+          scale: [0.98, 1],
+          duration: 400,
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
+    const animateWelcomeIn = () => {
+      const welcome = document.querySelector('.chat-welcome')
+      if (welcome) {
+        anime({
+          targets: ['.welcome-icon', 'h2', 'p', '.suggestion-chip'],
+          opacity: [0, 1],
+          translateY: [20, 0],
+          duration: 500,
+          delay: anime.stagger(80),
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
+    const animateAllMessages = () => {
+      const rows = document.querySelectorAll('.chat-messages .message-row')
+      if (rows.length > 2) {
+        anime.set(rows, { opacity: 0, translateY: 15 })
+        anime({
+          targets: rows,
+          opacity: [0, 1],
+          translateY: [15, 0],
+          duration: 400,
+          delay: anime.stagger(30),
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
+    const animateConvList = () => {
+      const items = document.querySelectorAll('.conv-item')
+      if (items.length) {
+        anime.set(items, { opacity: 0, translateX: -20 })
+        anime({
+          targets: items,
+          opacity: [0, 1],
+          translateX: [-20, 0],
+          duration: 400,
+          delay: anime.stagger(50),
+          easing: 'easeOutCubic'
+        })
+      }
+    }
+
     const scrollToBottom = async () => {
       await nextTick()
       if (messageListRef.value) {
         messageListRef.value.scrollTop = messageListRef.value.scrollHeight
       }
+      animateMessageIn()
     }
 
     const loadConversations = async () => {
       try {
         const res: any = await aiApi.conversations()
         conversations.value = res.content || []
+        setTimeout(() => animateConvList(), 400)
       } catch {}
     }
 
@@ -143,6 +206,8 @@ export default defineComponent({
         const res: any = await aiApi.messages(conv.id)
         messages.value = res.content || []
         await scrollToBottom()
+        animateAllMessages()
+        setTimeout(animateConvList, 200)
       } catch {
         message.error('加载对话失败')
       }
@@ -151,6 +216,7 @@ export default defineComponent({
     const newConversation = () => {
       currentId.value = ''
       messages.value = []
+      loadConversations()
     }
 
     const sendMessage = async () => {
@@ -183,7 +249,10 @@ export default defineComponent({
       sendMessage()
     }
 
-    onMounted(loadConversations)
+    onMounted(() => {
+      loadConversations()
+      setTimeout(animateWelcomeIn, 200)
+    })
 
     return {
       conversations, currentId, messages, inputMessage, loading, messageListRef,

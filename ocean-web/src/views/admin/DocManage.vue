@@ -72,9 +72,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, ref, onMounted, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { docApi, ebookApi, aiApi } from '../../api'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   setup() {
@@ -99,6 +100,20 @@ export default defineComponent({
       if (!ebookId.value) return
       const res: any = await docApi.list(ebookId.value)
       docTree.value = res.content
+      nextTick(() => {
+        const rows = document.querySelectorAll('.ant-table-row')
+        if (rows.length) {
+          anime.set(rows, { opacity: 0, translateY: 12 })
+          anime({
+            targets: rows,
+            opacity: [0, 1],
+            translateY: [12, 0],
+            duration: 400,
+            delay: anime.stagger(30),
+            easing: 'easeOutCubic'
+          })
+        }
+      })
     }
 
     const showModal = (record?: any) => {

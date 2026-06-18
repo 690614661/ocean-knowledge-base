@@ -66,9 +66,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, ref, onMounted, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { userApi } from '../../api'
+import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
   setup() {
@@ -92,6 +93,20 @@ export default defineComponent({
       const res: any = await userApi.list({ page: page.value, size: size.value })
       users.value = res.content.list
       total.value = res.content.total
+      nextTick(() => {
+        const rows = document.querySelectorAll('.ant-table-row')
+        if (rows.length) {
+          anime.set(rows, { opacity: 0, translateY: 12 })
+          anime({
+            targets: rows,
+            opacity: [0, 1],
+            translateY: [12, 0],
+            duration: 400,
+            delay: anime.stagger(30),
+            easing: 'easeOutCubic'
+          })
+        }
+      })
     }
 
     const showModal = (record?: any) => {
