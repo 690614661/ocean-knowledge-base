@@ -2,6 +2,9 @@
   <div class="page-container home-page" style="padding-bottom: 48px">
     <!-- 海洋英雄横幅 -->
     <div class="hero-section">
+      <!-- Shader 动画背景 -->
+      <ShaderAnimation />
+
       <!-- 气泡粒子 -->
       <div class="bubbles-container">
         <div class="bubble" v-for="n in 10" :key="n" :style="bubbleStyle(n)"></div>
@@ -179,9 +182,11 @@ import { useRouter } from 'vue-router'
 import { ebookApi, categoryApi, snapshotApi } from '../api'
 import * as echarts from 'echarts'
 import anime from 'animejs/lib/anime.es.js'
+import ShaderAnimation from '../components/ShaderAnimation.vue'
 
 export default defineComponent({
   name: 'Home',
+  components: { ShaderAnimation },
   setup() {
     const router = useRouter()
     const ebooks = ref<any[]>([])
@@ -595,12 +600,20 @@ export default defineComponent({
 /* ====== 英雄区 ====== */
 .hero-section {
   position: relative;
-  background: linear-gradient(160deg, #0a1628 0%, #0d3b66 25%, #0d6e6e 50%, #1677ff 80%, #40a9ff 100%);
   border-radius: 0 0 32px 32px;
   margin: 0 -24px 32px;
   padding: 56px 48px 0;
   overflow: hidden;
   min-height: 380px;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(10, 22, 40, 0.85) 0%, rgba(13, 59, 102, 0.7) 25%, rgba(13, 110, 110, 0.6) 50%, rgba(22, 119, 255, 0.7) 80%, rgba(64, 169, 255, 0.8) 100%);
+  z-index: 1;
+  pointer-events: none;
 }
 
 /* 气泡粒子 */
@@ -609,7 +622,7 @@ export default defineComponent({
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
 }
 
 .bubble {
@@ -642,6 +655,7 @@ export default defineComponent({
   position: absolute;
   inset: 0;
   overflow: hidden;
+  z-index: 2;
 }
 
 .hero-circle {
@@ -685,7 +699,7 @@ export default defineComponent({
 
 .hero-content {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -897,7 +911,7 @@ export default defineComponent({
 
 .hero-wave {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   margin-top: 24px;
   height: 100px;
 }
