@@ -9,7 +9,7 @@ import com.ocean.common.PageResp;
 import com.ocean.domain.Note;
 import com.ocean.domain.dto.NoteSaveReq;
 import com.ocean.mapper.NoteMapper;
-import com.ocean.util.JwtUtil;
+
 import com.ocean.util.XssFilterUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
