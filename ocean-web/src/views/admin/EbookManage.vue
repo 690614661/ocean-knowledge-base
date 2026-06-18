@@ -29,7 +29,8 @@
     </a-table>
 
     <a-modal
-      v-model:visible="modalVisible"
+            :open="modalVisible"
+      @update:open="(v) => modalVisible = v"
       :title="form.id ? '编辑电子书' : '新增电子书'"
       @ok="handleSave"
       width="600px"

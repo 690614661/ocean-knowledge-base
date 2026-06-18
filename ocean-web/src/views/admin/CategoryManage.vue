@@ -24,7 +24,8 @@
     </a-table>
 
     <a-modal
-      v-model:visible="modalVisible"
+            :open="modalVisible"
+      @update:open="(v) => modalVisible = v"
       :title="form.id ? '编辑分类' : '新增分类'"
       @ok="handleSave"
       class="ocean-modal"

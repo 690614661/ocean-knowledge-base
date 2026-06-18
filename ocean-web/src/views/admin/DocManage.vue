@@ -31,7 +31,8 @@
     </a-table>
 
     <a-modal
-      v-model:visible="modalVisible"
+            :open="modalVisible"
+      @update:open="(v) => modalVisible = v"
       :title="form.id ? '编辑文档' : '新增文档'"
       @ok="handleSave"
       width="800px"

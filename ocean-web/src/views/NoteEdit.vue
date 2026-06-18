@@ -72,10 +72,10 @@ export default defineComponent({
     })
 
     onMounted(async () => {
-      const id = route.params.id
+      const id = route.params.id as string
       if (id) {
         try {
-          const res: any = await noteApi.detail(Number(id))
+          const res: any = await noteApi.detail(id)
           form.value = res.content
         } catch {
           message.error('笔记加载失败')

@@ -29,7 +29,8 @@
 
     <!-- 新增/编辑用户 -->
     <a-modal
-      v-model:visible="modalVisible"
+      :open="modalVisible"
+      @update:open="(v) => modalVisible = v"
       :title="form.id ? '编辑用户' : '新增用户'"
       @ok="handleSave"
       class="ocean-modal"
@@ -49,7 +50,8 @@
 
     <!-- 重置密码 -->
     <a-modal
-      v-model:visible="resetModalVisible"
+      :open="resetModalVisible"
+      @update:open="(v) => resetModalVisible = v"
       title="🔑 重置密码"
       @ok="handleResetPassword"
       class="ocean-modal"
