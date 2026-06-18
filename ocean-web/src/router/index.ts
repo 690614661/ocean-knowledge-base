@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
-import Login from '../views/Login.vue'
+import AnimatedLogin from '../views/login/AnimatedLoginPage.vue'
 import EbookDetail from '../views/EbookDetail.vue'
 import Search from '../views/Search.vue'
 import NoteList from '../views/NoteList.vue'
@@ -17,7 +17,7 @@ import ServerError from '../views/error/ServerError.vue'
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
-  { path: '/login', name: 'Login', component: Login },
+  { path: '/login', name: 'Login', component: AnimatedLogin },
   { path: '/ebook/:id', name: 'EbookDetail', component: EbookDetail },
   { path: '/search', name: 'Search', component: Search },
   { path: '/notes', name: 'NoteList', component: NoteList },

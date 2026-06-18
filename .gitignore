@@ -39,5 +39,6 @@ PROJECT_MEMORY.md
 # Temp files
 redis-local/
 *.err
+*.pid
 serve.js
 *.bak

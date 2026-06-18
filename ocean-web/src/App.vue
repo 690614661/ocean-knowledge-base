@@ -1,8 +1,11 @@
 <template>
   <div id="app">
-    <a-layout style="min-height: 100vh">
-      <!-- 导航栏（登录页不显示） -->
-      <a-layout-header v-if="!isLoginPage" class="app-header">
+    <!-- 登录页独立渲染，不受布局影响 -->
+    <router-view v-if="isLoginPage" />
+
+    <a-layout v-else style="min-height: 100vh">
+      <!-- 导航栏 -->
+      <a-layout-header class="app-header">
         <div class="header-inner">
           <router-link to="/" class="logo">
             <span class="logo-icon">🌊</span>
@@ -42,11 +45,11 @@
         </div>
       </a-layout-header>
 
-      <a-layout-content class="app-content" :class="{ 'app-content--full': isLoginPage }">
+      <a-layout-content class="app-content">
         <router-view />
       </a-layout-content>
 
-      <a-layout-footer v-if="!isLoginPage" class="app-footer">
+      <a-layout-footer class="app-footer">
         <div class="footer-wave"></div>
         <div class="footer-content">
           <div class="footer-links">
@@ -255,10 +258,6 @@ export default defineComponent({
 .app-content {
   min-height: calc(100vh - 134px);
   background: linear-gradient(180deg, #e8f4fd 0%, #f0f9ff 50%, #f5faff 100%);
-}
-
-.app-content--full {
-  min-height: 100vh;
 }
 
 .app-footer {
