@@ -17,7 +17,6 @@ ocean-server/src/main/resources/application-dev.yml
 
 # Documentation（除非手动指定）
 docs/
-RUN.md
 
 # Frontend
 ocean-web/node_modules/
