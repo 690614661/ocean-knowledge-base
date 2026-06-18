@@ -64,6 +64,15 @@ public class AiController {
         return CommonResp.ok(aiService.getMessages(id, userId));
     }
 
+    @ApiOperation("删除对话")
+    @DeleteMapping("/conversations/{id}")
+    public CommonResp<?> deleteConversation(@PathVariable String id, HttpServletRequest request) {
+        String token = request.getHeader("token");
+        Long userId = JwtUtil.getUserIdFromToken(token);
+        aiService.deleteConversation(id, userId);
+        return CommonResp.ok("删除成功");
+    }
+
     @ApiOperation("AI 用量统计")
     @GetMapping("/usage")
     public CommonResp<Map<String, Object>> usage(HttpServletRequest request) {

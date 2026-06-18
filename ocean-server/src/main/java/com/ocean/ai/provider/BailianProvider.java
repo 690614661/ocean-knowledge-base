@@ -16,32 +16,36 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.PostConstruct;
 
+/**
+ * 阿里云百炼（DashScope）AI 供应商实现
+ * 支持通义千问（Qwen）系列模型
+ * API 文档：https://help.aliyun.com/zh/model-studio/
+ */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "ai.provider", havingValue = "deepseek", matchIfMissing = true)
-public class DeepSeekProvider implements AiProvider {
+@ConditionalOnProperty(name = "ai.provider", havingValue = "bailian")
+public class BailianProvider implements AiProvider {
 
-    @Value("${DEEPSEEK_API_KEY:}")
+    @Value("${BAILIAN_API_KEY:}")
     private String apiKey;
 
-    @Value("${ai.deepseek.base-url}")
+    @Value("${ai.bailian.base-url:https://dashscope.aliyuncs.com}")
     private String baseUrl;
 
-    @Value("${ai.deepseek.model}")
+    @Value("${ai.bailian.model:qwen-plus}")
     private String defaultModel;
 
-    @Value("${ai.deepseek.max-tokens}")
+    @Value("${ai.bailian.max-tokens:4096}")
     private Integer maxTokens;
 
-    @Value("${ai.deepseek.temperature}")
+    @Value("${ai.bailian.temperature:0.7}")
     private Double temperature;
 
-    @Value("${ai.deepseek.timeout:60}")
+    @Value("${ai.bailian.timeout:60}")
     private Integer timeout;
 
     private RestTemplate restTemplate;
@@ -53,7 +57,7 @@ public class DeepSeekProvider implements AiProvider {
         factory.setConnectTimeout(ms);
         factory.setReadTimeout(ms);
         this.restTemplate = new RestTemplate(factory);
-        log.info("DeepSeekProvider initialized, apiKey={}", apiKey != null && !apiKey.isEmpty() ? "***set***" : "EMPTY");
+        log.info("BailianProvider initialized, apiKey={}", apiKey != null && !apiKey.isEmpty() ? "***set***" : "EMPTY");
     }
 
     @Override
@@ -63,11 +67,11 @@ public class DeepSeekProvider implements AiProvider {
 
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
+                // 构建请求体
                 JSONObject body = new JSONObject();
                 body.put("model", request.getModel() != null ? request.getModel() : defaultModel);
-                body.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : maxTokens);
-                body.put("temperature", request.getTemperature() != null ? request.getTemperature() : temperature);
 
+                // 构建 messages
                 JSONArray messages = new JSONArray();
 
                 if (request.getSystemPrompt() != null) {
@@ -86,16 +90,28 @@ public class DeepSeekProvider implements AiProvider {
                     }
                 }
 
-                body.put("messages", messages);
+                // 百炼 API 的 input 结构
+                JSONObject input = new JSONObject();
+                input.put("messages", messages);
+                body.put("input", input);
 
+                // 参数
+                JSONObject parameters = new JSONObject();
+                parameters.put("result_format", "message");
+                parameters.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : maxTokens);
+                parameters.put("temperature", request.getTemperature() != null ? request.getTemperature() : temperature);
+                body.put("parameters", parameters);
+
+                // 请求头
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 headers.setBearerAuth(apiKey);
 
                 HttpEntity<String> entity = new HttpEntity<>(body.toJSONString(), headers);
 
+                // 调用百炼 API
                 ResponseEntity<String> response = restTemplate.exchange(
-                        baseUrl + "/chat/completions",
+                        baseUrl + "/api/v1/services/aigc/text-generation/generation",
                         HttpMethod.POST,
                         entity,
                         String.class
@@ -105,20 +121,22 @@ public class DeepSeekProvider implements AiProvider {
                 String responseBody = response.getBody();
 
                 if (!response.getStatusCode().is2xxSuccessful()) {
-                    log.error("DeepSeek API调用失败: status={}, body={}", response.getStatusCode(), responseBody);
+                    log.error("百炼API调用失败: status={}, body={}", response.getStatusCode(), responseBody);
                     throw new RuntimeException("AI服务暂时不可用");
                 }
 
                 JSONObject result = JSON.parseObject(responseBody);
-                JSONArray choices = result.getJSONArray("choices");
+                JSONObject output = result.getJSONObject("output");
+                JSONArray choices = output.getJSONArray("choices");
                 String content = choices.getJSONObject(0).getJSONObject("message").getString("content");
 
                 JSONObject usage = result.getJSONObject("usage");
 
                 AiResponse aiResponse = new AiResponse();
                 aiResponse.setContent(content);
-                aiResponse.setPromptTokens(usage.getInteger("prompt_tokens"));
-                aiResponse.setCompletionTokens(usage.getInteger("completion_tokens"));
+                // 百炼返回 input_tokens / output_tokens
+                aiResponse.setPromptTokens(usage.getInteger("input_tokens"));
+                aiResponse.setCompletionTokens(usage.getInteger("output_tokens"));
                 aiResponse.setTotalTokens(usage.getInteger("total_tokens"));
                 aiResponse.setModel(result.getString("model"));
                 aiResponse.setProvider(getName());
@@ -127,20 +145,20 @@ public class DeepSeekProvider implements AiProvider {
                 return aiResponse;
             } catch (Exception e) {
                 lastException = e;
-                log.warn("DeepSeek API第{}/2次调用失败: {}", attempt, e.getMessage());
+                log.warn("百炼API第{}/2次调用失败: {}", attempt, e.getMessage());
                 if (attempt < 2) {
                     try { Thread.sleep(2000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
                 }
             }
         }
 
-        log.error("DeepSeek API两次调用均失败", lastException);
+        log.error("百炼API两次调用均失败", lastException);
         throw new RuntimeException("AI响应超时，请稍后重试");
     }
 
     @Override
     public String getName() {
-        return "deepseek";
+        return "bailian";
     }
 
     @Override

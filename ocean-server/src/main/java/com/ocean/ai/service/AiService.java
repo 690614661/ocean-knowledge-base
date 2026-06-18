@@ -17,7 +17,6 @@ import com.ocean.mapper.AiMessageMapper;
 import com.ocean.mapper.AiUsageLogMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -39,9 +38,6 @@ public class AiService {
 
     @Autowired
     private AiUsageLogMapper usageLogMapper;
-
-    @Value("${ai.deepseek.model}")
-    private String modelName;
 
     private static final String CHAT_SYSTEM_PROMPT = "你是\"海洋知识库\"的 AI 助手，专注于海洋生物领域。\n" +
             "你的职责：\n" +
@@ -218,6 +214,13 @@ public class AiService {
     }
 
     private BigDecimal calculateCost(int promptTokens, int completionTokens) {
+        String provider = aiProvider.getName();
+        if ("bailian".equals(provider)) {
+            // 百炼通义千问定价: 输入 ¥0.5/1M tokens, 输出 ¥2/1M tokens (以 qwen-plus 为例)
+            BigDecimal inputCost = BigDecimal.valueOf(promptTokens).multiply(BigDecimal.valueOf(0.5)).divide(BigDecimal.valueOf(1000000), 6, BigDecimal.ROUND_HALF_UP);
+            BigDecimal outputCost = BigDecimal.valueOf(completionTokens).multiply(BigDecimal.valueOf(2)).divide(BigDecimal.valueOf(1000000), 6, BigDecimal.ROUND_HALF_UP);
+            return inputCost.add(outputCost);
+        }
         // DeepSeek 定价: 输入 ¥1/1M tokens, 输出 ¥2/1M tokens
         BigDecimal inputCost = BigDecimal.valueOf(promptTokens).multiply(BigDecimal.valueOf(1)).divide(BigDecimal.valueOf(1000000), 6, BigDecimal.ROUND_HALF_UP);
         BigDecimal outputCost = BigDecimal.valueOf(completionTokens).multiply(BigDecimal.valueOf(2)).divide(BigDecimal.valueOf(1000000), 6, BigDecimal.ROUND_HALF_UP);
@@ -230,7 +233,7 @@ public class AiService {
         logEntry.setUserId(userId);
         logEntry.setFeature(feature);
         logEntry.setProvider(aiProvider.getName());
-        logEntry.setModel(modelName);
+        logEntry.setModel(aiProvider.getModelName());
         logEntry.setPromptTokens(promptTokens);
         logEntry.setCompletionTokens(completionTokens);
         logEntry.setTotalTokens(totalTokens);
@@ -258,6 +261,18 @@ public class AiService {
                 new LambdaQueryWrapper<AiMessage>()
                         .eq(AiMessage::getConversationId, conversationId)
                         .orderByAsc(AiMessage::getCreateTime));
+    }
+
+    public void deleteConversation(String conversationId, Long userId) {
+        AiConversation conversation = conversationMapper.selectById(conversationId);
+        if (conversation == null || !conversation.getUserId().equals(userId)) {
+            throw new BusinessException("会话不存在");
+        }
+        // 删除会话下的所有消息
+        messageMapper.delete(new LambdaQueryWrapper<AiMessage>()
+                .eq(AiMessage::getConversationId, conversationId));
+        // 删除会话
+        conversationMapper.deleteById(conversationId);
     }
 
     public Map<String, Object> getUsage(Long userId) {

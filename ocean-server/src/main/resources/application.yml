@@ -43,11 +43,18 @@ salt:
   password: ocean_knowledge_salt_2026
 
 ai:
-  provider: deepseek
+  provider: ${AI_PROVIDER:bailian}
   deepseek:
     api-key: ${DEEPSEEK_API_KEY:}
     base-url: https://api.deepseek.com
     model: deepseek-chat
+    max-tokens: 4096
+    temperature: 0.7
+    timeout: 60
+  bailian:
+    api-key: ${BAILIAN_API_KEY:}
+    base-url: https://dashscope.aliyuncs.com
+    model: qwen-plus
     max-tokens: 4096
     temperature: 0.7
     timeout: 60

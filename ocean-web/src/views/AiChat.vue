@@ -22,6 +22,13 @@
               <div class="conv-item-title">{{ conv.title || '新对话' }}</div>
               <div class="conv-item-time">{{ conv.updateTime?.slice(0, 10) }}</div>
             </div>
+            <a-button
+              type="text"
+              size="small"
+              class="conv-delete-btn"
+              danger
+              @click.stop="handleDelete(conv.id)"
+            >✕</a-button>
           </div>
           <div v-if="conversations.length === 0" class="conv-empty">暂无对话记录</div>
         </div>
@@ -140,20 +147,6 @@ export default defineComponent({
       }
     }
 
-    const animateWelcomeIn = () => {
-      const welcome = document.querySelector('.chat-welcome')
-      if (welcome) {
-        anime({
-          targets: ['.welcome-icon', 'h2', 'p', '.suggestion-chip'],
-          opacity: [0, 1],
-          translateY: [20, 0],
-          duration: 500,
-          delay: anime.stagger(80),
-          easing: 'easeOutCubic'
-        })
-      }
-    }
-
     const animateAllMessages = () => {
       const rows = document.querySelectorAll('.chat-messages .message-row')
       if (rows.length > 2) {
@@ -164,21 +157,6 @@ export default defineComponent({
           translateY: [15, 0],
           duration: 400,
           delay: anime.stagger(30),
-          easing: 'easeOutCubic'
-        })
-      }
-    }
-
-    const animateConvList = () => {
-      const items = document.querySelectorAll('.conv-item')
-      if (items.length) {
-        anime.set(items, { opacity: 0, translateX: -20 })
-        anime({
-          targets: items,
-          opacity: [0, 1],
-          translateX: [-20, 0],
-          duration: 400,
-          delay: anime.stagger(50),
           easing: 'easeOutCubic'
         })
       }
@@ -196,7 +174,6 @@ export default defineComponent({
       try {
         const res: any = await aiApi.conversations()
         conversations.value = res.content || []
-        setTimeout(() => animateConvList(), 400)
       } catch {}
     }
 
@@ -207,9 +184,22 @@ export default defineComponent({
         messages.value = res.content || []
         await scrollToBottom()
         animateAllMessages()
-        setTimeout(animateConvList, 200)
       } catch {
         message.error('加载对话失败')
+      }
+    }
+
+    const handleDelete = async (id: string) => {
+      try {
+        await aiApi.delete(id)
+        message.success('会话已删除')
+        if (currentId.value === id) {
+          currentId.value = ''
+          messages.value = []
+        }
+        loadConversations()
+      } catch {
+        message.error('删除失败')
       }
     }
 
@@ -251,12 +241,11 @@ export default defineComponent({
 
     onMounted(() => {
       loadConversations()
-      setTimeout(animateWelcomeIn, 200)
     })
 
     return {
       conversations, currentId, messages, inputMessage, loading, messageListRef,
-      suggestions, renderMarkdown, selectConversation, newConversation,
+      suggestions, renderMarkdown, selectConversation, newConversation, handleDelete,
       sendMessage, quickAsk
     }
   }
@@ -351,6 +340,22 @@ export default defineComponent({
   margin-top: 2px;
 }
 
+.conv-delete-btn {
+  opacity: 0;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  margin-top: 2px;
+  transition: opacity 0.2s ease;
+}
+
+.conv-item:hover .conv-delete-btn {
+  opacity: 1;
+}
+
 .conv-empty {
   text-align: center;
   padding: 24px;
@@ -392,12 +397,6 @@ export default defineComponent({
 .welcome-icon {
   font-size: 64px;
   margin-bottom: 16px;
-  animation: float 4s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
 }
 
 .chat-welcome h2 {

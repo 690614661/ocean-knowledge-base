@@ -66,6 +66,8 @@ function Backend-Start {
         exit 1
     }
 
+    # 确保 AI API Key 环境变量传入子进程（已通过 setx 持久化）
+    $env:BAILIAN_API_KEY = [Environment]::GetEnvironmentVariable("BAILIAN_API_KEY", "User")
     $proc = Start-Process -FilePath $javaExe -ArgumentList "-jar `"$jarFile`"" -NoNewWindow -PassThru -RedirectStandardOutput $BackendLog
 
     # 等待启动

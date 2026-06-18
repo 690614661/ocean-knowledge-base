@@ -6,4 +6,5 @@ import com.ocean.ai.model.AiResponse;
 public interface AiProvider {
     AiResponse chat(AiRequest request);
     String getName();
+    String getModelName();
 }

@@ -58,5 +58,6 @@ export const aiApi = {
   generate: (data: any) => request.post('/api/ai/generate', data),
   conversations: (params?: any) => request.get('/api/ai/conversations', { params }),
   messages: (id: string) => request.get(`/api/ai/conversations/${id}/messages`),
+  delete: (id: string) => request.delete(`/api/ai/conversations/${id}`),
   usage: () => request.get('/api/ai/usage')
 }
