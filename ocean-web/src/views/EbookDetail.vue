@@ -95,11 +95,21 @@ export default defineComponent({
     const favorited = ref(false)
     const favLoading = ref(false)
 
+    const stripTreeProps = (tree: any[]): any[] => {
+      return tree.map(node => {
+        const { parent, ...rest } = node
+        if (rest.children && rest.children.length > 0) {
+          rest.children = stripTreeProps(rest.children)
+        }
+        return rest
+      })
+    }
+
     const loadDocs = async () => {
       const ebookId = Number(route.params.id)
       if (!ebookId) { router.push('/'); return }
       const res: any = await docApi.list(ebookId)
-      docTree.value = res.content
+      docTree.value = stripTreeProps(res.content || [])
     }
 
     const animateContentIn = () => {

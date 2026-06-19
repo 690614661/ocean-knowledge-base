@@ -58,7 +58,7 @@ export const noteApi = {
 }
 
 export const aiApi = {
-  chat: (data: any) => request.post('/api/ai/chat', data),
+  chat: (data: any) => request.post('/api/ai/chat', data, { timeout: 120000 }),
   generate: (data: any) => request.post('/api/ai/generate', data),
   conversations: (params?: any) => request.get('/api/ai/conversations', { params }),
   messages: (id: string) => request.get(`/api/ai/conversations/${id}/messages`),
