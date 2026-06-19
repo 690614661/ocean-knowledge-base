@@ -1,6 +1,6 @@
 # 🌊 Ocean Knowledge Base — 海洋生物知识库
 
-基于 Vue 3 + Spring Boot 的海洋生物在线知识库系统，支持 AI 智能问答、全文检索、文档管理、数据统计和实时通知。采用微服务架构设计，集成 Docker Compose 一键部署。
+基于 Vue 3 + Spring Boot 的海洋生物在线知识库系统，支持 AI 智能问答、全文检索、文档管理、数据统计和实时通知。
 
 ## 技术栈
 
@@ -51,36 +51,19 @@
 ```
 ocean-knowledge-base/
 ├── ocean-server/          # 后端 Spring Boot
-│   ├── controller/        # REST API 控制器
-│   ├── service/           # 业务逻辑层
-│   ├── mapper/            # MyBatis-Plus 数据访问
-│   ├── ai/                # AI 模块（供应商抽象层）
-│   ├── config/            # 全局配置（CORS/WebSocket/ES/Redis）
-│   └── websocket/         # WebSocket 实时通知
 ├── ocean-web/             # 前端 Vue 3 + TypeScript
-│   ├── views/             # 页面组件（首页/阅读/AI/笔记/管理后台）
-│   └── api/               # Axios 接口封装
-├── docs/                  # 完整设计文档（PRD/架构/API/数据模型）
+├── docs/                  # 完整设计文档
 ├── docker-compose.yml     # 7 服务容器编排
-└── start.sh               # 一键启动脚本（含 ES 自动启动）
-
+└── start.sh               # 一键启动脚本
 ```
 
 ## 快速启动
 
-### 方式一：Docker Compose（推荐）
-
 ```bash
+# Docker Compose 部署
 docker-compose up -d
-```
 
-### 方式二：本地开发
-
-```bash
-git clone https://github.com/690614661/ocean-knowledge-base.git
-cd ocean-knowledge-base
-
-# 启动（自动检查依赖、启动 ES、编译后端、启动前端）
+# 或本地开发启动
 ./start.sh start all
 ```
 
@@ -93,13 +76,11 @@ cd ocean-knowledge-base
 
 ## AI 配置
 
-在 `application.yml` 或环境变量中配置 AI 供应商：
-
 ```bash
 export BAILIAN_API_KEY=your_api_key_here
-export AI_PROVIDER=bailian    # 支持 bailian / deepseek
+export AI_PROVIDER=bailian
 ```
 
-## 🤝 联系方式
+## 关于
 
-[GitHub](https://github.com/690614661) · 个人项目，持续维护中
+大三软件工程实训项目，4 人团队，25 天开发周期。
