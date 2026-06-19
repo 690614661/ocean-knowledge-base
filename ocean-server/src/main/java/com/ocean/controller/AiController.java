@@ -10,6 +10,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -32,6 +33,17 @@ public class AiController {
         String conversationId = body.get("conversationId");
         String message = body.get("message");
         return CommonResp.ok(aiService.chat(conversationId, message, userId));
+    }
+
+    @ApiOperation("AI 流式对话（SSE）")
+    @RateLimit(permitsPerMinute = 10, permitsPerDay = 100)
+    @PostMapping("/chat/stream")
+    public SseEmitter streamChat(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        String token = request.getHeader("token");
+        Long userId = JwtUtil.getUserIdFromToken(token);
+        String conversationId = body.get("conversationId");
+        String message = body.get("message");
+        return aiService.streamChat(conversationId, message, userId);
     }
 
     @ApiOperation("AI 内容生成")

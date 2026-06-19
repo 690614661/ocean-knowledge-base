@@ -66,7 +66,13 @@
             <div class="message-content ai-content" v-else v-html="renderMarkdown(msg.content)"></div>
           </div>
 
-          <div v-if="loading" class="message-row assistant">
+          <!-- 打字机效果容器 -->
+          <div v-if="showTyping" class="message-row assistant">
+            <div class="message-avatar"><span class="ai-avatar">🤖</span></div>
+            <div class="message-content ai-content" v-html="renderMarkdown(typingText)"></div>
+          </div>
+
+          <div v-if="loading && !showTyping" class="message-row assistant">
             <div class="message-avatar"><span class="ai-avatar">🤖</span></div>
             <div class="message-content ai-content">
               <span class="typing-dots">
@@ -83,9 +89,18 @@
             size="large"
             class="chat-input"
             @pressEnter="sendMessage"
-            :disabled="loading"
+            :disabled="loading || showTyping"
           />
           <a-button
+            v-if="showTyping"
+            danger
+            class="stop-btn"
+            @click="stopTyping"
+          >
+            ■ 停止生成
+          </a-button>
+          <a-button
+            v-else
             type="primary"
             class="send-btn"
             :loading="loading"
@@ -100,7 +115,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, nextTick } from 'vue'
+import { defineComponent, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { aiApi } from '../api'
 import { message } from 'ant-design-vue'
 import { marked } from 'marked'
@@ -114,6 +129,8 @@ export default defineComponent({
     const messages = ref<any[]>([])
     const inputMessage = ref('')
     const loading = ref(false)
+    const showTyping = ref(false)
+    const typingText = ref('')
     const messageListRef = ref<HTMLElement>()
 
     const suggestions = [
@@ -129,6 +146,26 @@ export default defineComponent({
       } catch {
         return content
       }
+    }
+
+    // ====== 打字机效果 ======
+    let typingTimer: ReturnType<typeof setInterval> | null = null
+    let typingStopped = false
+
+    const stopTyping = () => {
+      typingStopped = true
+      if (typingTimer) {
+        clearInterval(typingTimer)
+        typingTimer = null
+      }
+      showTyping.value = false
+      loading.value = false
+    }
+
+    const scrollToBottom = async () => {
+      await nextTick()
+      const el = messageListRef.value
+      if (el) el.scrollTop = el.scrollHeight
     }
 
     const animateMessageIn = () => {
@@ -160,14 +197,6 @@ export default defineComponent({
           easing: 'easeOutCubic'
         })
       }
-    }
-
-    const scrollToBottom = async () => {
-      await nextTick()
-      if (messageListRef.value) {
-        messageListRef.value.scrollTop = messageListRef.value.scrollHeight
-      }
-      animateMessageIn()
     }
 
     const loadConversations = async () => {
@@ -216,21 +245,70 @@ export default defineComponent({
       messages.value.push({ id: Date.now().toString(), role: 'user', content: msg })
       await scrollToBottom()
       loading.value = true
+
       try {
+        // 使用同步 API 获取完整回复
         const res: any = await aiApi.chat({
           conversationId: currentId.value || undefined,
           message: msg
         })
-        currentId.value = res.content.conversationId
-        messages.value.push({
-          id: res.content.messageId,
-          role: 'assistant',
-          content: res.content.content
-        })
+        const convId = res.content?.conversationId || ''
+        const reply = res.content?.content || ''
+        currentId.value = convId
+
+        if (reply) {
+          // 先添加空消息占位，等待打字机完成后保留
+          messages.value.push({
+            id: 'typing-' + Date.now(),
+            role: 'assistant',
+            content: ''
+          })
+          showTyping.value = true
+
+          // 打字机逐字显示
+          await new Promise<void>((resolve) => {
+            typingStopped = false
+            typingText.value = ''
+            let pos = 0
+            const STEP = 3
+
+            typingTimer = setInterval(() => {
+              if (typingStopped) {
+                if (typingTimer) { clearInterval(typingTimer); typingTimer = null }
+                resolve()
+                return
+              }
+              if (pos >= reply.length) {
+                if (typingTimer) { clearInterval(typingTimer); typingTimer = null }
+                typingText.value = reply
+                resolve()
+                return
+              }
+              pos = Math.min(pos + STEP, reply.length)
+              typingText.value = reply.substring(0, pos)
+              const el = messageListRef.value
+              if (el) el.scrollTop = el.scrollHeight
+            }, 25)
+          })
+
+          // 打字完成 -> 替换为空消息为完整内容
+          showTyping.value = false
+          messages.value = messages.value.filter(m => !m.id.startsWith('typing-'))
+          messages.value.push({
+            id: res.content?.messageId || 'assistant-' + Date.now(),
+            role: 'assistant',
+            content: reply
+          })
+          await scrollToBottom()
+          animateMessageIn()
+        }
+
         loadConversations()
-        await scrollToBottom()
-      } catch {} finally {
+      } catch (e: any) {
+        message.error(e?.response?.data?.message || 'AI响应失败')
+      } finally {
         loading.value = false
+        showTyping.value = false
       }
     }
 
@@ -243,10 +321,15 @@ export default defineComponent({
       loadConversations()
     })
 
+    onUnmounted(() => {
+      if (typingTimer) clearInterval(typingTimer)
+    })
+
     return {
-      conversations, currentId, messages, inputMessage, loading, messageListRef,
-      suggestions, renderMarkdown, selectConversation, newConversation, handleDelete,
-      sendMessage, quickAsk
+      conversations, currentId, messages, inputMessage, loading,
+      showTyping, typingText, messageListRef,
+      suggestions, renderMarkdown, selectConversation, newConversation,
+      handleDelete, sendMessage, quickAsk, stopTyping
     }
   }
 })
@@ -562,6 +645,13 @@ export default defineComponent({
   padding: 0 24px;
   background: linear-gradient(135deg, #1677ff, #4096ff);
   border: none;
+  font-weight: 600;
+}
+
+.stop-btn {
+  border-radius: 12px;
+  height: 40px;
+  padding: 0 20px;
   font-weight: 600;
 }
 </style>

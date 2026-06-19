@@ -3,8 +3,10 @@ package com.ocean.controller;
 import com.ocean.common.CommonResp;
 import com.ocean.common.PageResp;
 import com.ocean.domain.User;
+import com.ocean.domain.dto.ChangePasswordReq;
 import com.ocean.domain.dto.ResetPasswordReq;
 import com.ocean.domain.dto.UserLoginReq;
+import com.ocean.domain.dto.UserProfileUpdateReq;
 import com.ocean.domain.dto.UserSaveReq;
 import com.ocean.interceptor.RateLimit;
 import com.ocean.service.UserService;
@@ -16,6 +18,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
 
 @Api(tags = "用户管理")
 @RestController
@@ -66,5 +69,41 @@ public class UserController {
     public CommonResp<?> resetPassword(@Validated @RequestBody ResetPasswordReq req) {
         userService.resetPassword(req);
         return CommonResp.ok("密码重置成功");
+    }
+
+    @ApiOperation("获取个人信息")
+    @GetMapping("/profile")
+    public CommonResp<User> profile(HttpServletRequest request) {
+        String token = request.getHeader("token");
+        Long userId = JwtUtil.getUserIdFromToken(token);
+        return CommonResp.ok(userService.getProfile(userId));
+    }
+
+    @ApiOperation("更新个人信息")
+    @PostMapping("/profile")
+    public CommonResp<?> updateProfile(@Validated @RequestBody UserProfileUpdateReq req, HttpServletRequest request) {
+        String token = request.getHeader("token");
+        Long userId = JwtUtil.getUserIdFromToken(token);
+        userService.updateProfile(userId, req);
+        return CommonResp.ok("保存成功");
+    }
+
+    @ApiOperation("修改密码")
+    @PostMapping("/change-password")
+    public CommonResp<?> changePassword(@Validated @RequestBody ChangePasswordReq req, HttpServletRequest request) {
+        String token = request.getHeader("token");
+        Long userId = JwtUtil.getUserIdFromToken(token);
+        userService.changePassword(userId, req);
+        return CommonResp.ok("密码修改成功");
+    }
+
+    @ApiOperation("阅读历史")
+    @GetMapping("/history")
+    public CommonResp<PageResp<Map<String, Object>>> history(@RequestParam(defaultValue = "1") int page,
+                                                              @RequestParam(defaultValue = "10") int size,
+                                                              HttpServletRequest request) {
+        String token = request.getHeader("token");
+        Long userId = JwtUtil.getUserIdFromToken(token);
+        return CommonResp.ok(userService.getHistory(userId, page, size));
     }
 }

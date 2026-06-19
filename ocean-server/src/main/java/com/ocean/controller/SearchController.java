@@ -58,11 +58,14 @@ public class SearchController {
             queryBody.put("size", size);
 
             // 调用 ES HTTP API
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = restTemplate.postForObject(
+            String esResponse = restTemplate.postForObject(
                     esUrl + "/doc_index/_search",
                     queryBody,
-                    Map.class);
+                    String.class);
+            log.info("ES原始响应: {}", esResponse != null ? esResponse.substring(0, Math.min(esResponse.length(), 500)) : "null");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = com.alibaba.fastjson.JSON.parseObject(esResponse, Map.class);
 
             List<Map<String, Object>> resultList = new ArrayList<>();
 
@@ -113,8 +116,11 @@ public class SearchController {
             emptyResult.put("list", resultList);
             return CommonResp.ok(emptyResult);
         } catch (Exception e) {
-            log.error("搜索失败", e);
-            return CommonResp.fail("搜索服务暂时不可用");
+            log.warn("搜索服务暂不可用，返回空结果", e);
+            Map<String, Object> emptyResult = new HashMap<>();
+            emptyResult.put("total", 0);
+            emptyResult.put("list", new ArrayList<>());
+            return CommonResp.ok(emptyResult);
         }
     }
 }

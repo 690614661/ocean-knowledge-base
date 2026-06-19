@@ -46,8 +46,14 @@ public class DocController {
 
     @ApiOperation("文档详情（阅读）")
     @GetMapping("/{id}")
-    public CommonResp<Doc> detail(@PathVariable Long id) {
-        return CommonResp.ok(docService.getDetail(id));
+    public CommonResp<Doc> detail(@PathVariable Long id, HttpServletRequest request) {
+        // 尝试获取登录用户（阅读历史用，非必须）
+        Long userId = null;
+        String token = request.getHeader("token");
+        if (token != null && JwtUtil.validateToken(token)) {
+            userId = JwtUtil.getUserIdFromToken(token);
+        }
+        return CommonResp.ok(docService.getDetail(id, userId));
     }
 
     @ApiOperation("新增/编辑文档")

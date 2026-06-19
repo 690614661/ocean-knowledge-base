@@ -8,9 +8,12 @@ import com.ocean.common.BusinessException;
 import com.ocean.common.Constant;
 import com.ocean.common.CommonResp;
 import com.ocean.common.PageResp;
+import com.ocean.domain.Doc;
 import com.ocean.domain.User;
+import com.ocean.domain.dto.ChangePasswordReq;
 import com.ocean.domain.dto.ResetPasswordReq;
 import com.ocean.domain.dto.UserLoginReq;
+import com.ocean.domain.dto.UserProfileUpdateReq;
 import com.ocean.domain.dto.UserSaveReq;
 import com.ocean.mapper.UserMapper;
 import com.ocean.util.JwtUtil;
@@ -22,9 +25,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -140,5 +146,87 @@ public class UserService extends ServiceImpl<UserMapper, User> {
 
     public void delete(Long id) {
         this.removeById(id);
+    }
+
+    public User getProfile(Long userId) {
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        user.setPassword(null);
+        return user;
+    }
+
+    public void updateProfile(Long userId, UserProfileUpdateReq req) {
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        user.setName(req.getName());
+        this.updateById(user);
+    }
+
+    public void changePassword(Long userId, ChangePasswordReq req) {
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 验证旧密码
+        boolean passwordMatch;
+        if (BcryptUtil.isBcrypt(user.getPassword())) {
+            passwordMatch = BcryptUtil.matches(req.getOldPassword(), user.getPassword());
+        } else {
+            passwordMatch = Md5Util.encrypt(req.getOldPassword()).equals(user.getPassword());
+        }
+        if (!passwordMatch) {
+            throw new BusinessException("原密码不正确");
+        }
+
+        // 设置新密码
+        user.setPassword(BcryptUtil.encrypt(req.getNewPassword()));
+        this.updateById(user);
+    }
+
+    @Autowired
+    private DocService docService;
+
+    public PageResp<Map<String, Object>> getHistory(Long userId, int page, int size) {
+        String key = Constant.HISTORY_REDIS_PREFIX + userId;
+        List<Object> docIds = redisTemplate.opsForList().range(key, 0, -1);
+
+        if (docIds == null || docIds.isEmpty()) {
+            return new PageResp<>(0, new ArrayList<>());
+        }
+
+        int total = docIds.size();
+        int fromIndex = (page - 1) * size;
+        int toIndex = Math.min(fromIndex + size, total);
+
+        if (fromIndex >= total) {
+            return new PageResp<>(total, new ArrayList<>());
+        }
+
+        List<Object> pageIds = docIds.subList(fromIndex, toIndex);
+
+        // 批量查询文档
+        List<Long> ids = pageIds.stream().map(o -> Long.valueOf(o.toString())).collect(Collectors.toList());
+        List<Doc> docs = docService.listByIds(ids);
+        Map<Long, Doc> docMap = docs.stream().collect(Collectors.toMap(Doc::getId, d -> d));
+
+        // 保持 Redis 中的顺序（最新在前）
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Long id : ids) {
+            Doc doc = docMap.get(id);
+            if (doc != null) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("docId", doc.getId());
+                item.put("docName", doc.getName());
+                item.put("ebookId", doc.getEbookId());
+                result.add(item);
+            }
+        }
+
+        return new PageResp<>(total, result);
     }
 }

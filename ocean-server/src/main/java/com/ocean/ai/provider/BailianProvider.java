@@ -19,6 +19,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.PostConstruct;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 
 /**
  * 阿里云百炼（DashScope）AI 供应商实现
@@ -154,6 +161,123 @@ public class BailianProvider implements AiProvider {
 
         log.error("百炼API两次调用均失败", lastException);
         throw new RuntimeException("AI响应超时，请稍后重试");
+    }
+
+    @Override
+    public void streamChat(AiRequest request, Consumer<String> onChunk,
+                           Consumer<String> onUsage, Runnable onComplete,
+                           Consumer<Throwable> onError) {
+        try {
+            JSONObject body = new JSONObject();
+            body.put("model", request.getModel() != null ? request.getModel() : defaultModel);
+
+            JSONArray messages = new JSONArray();
+            if (request.getSystemPrompt() != null) {
+                JSONObject sysMsg = new JSONObject();
+                sysMsg.put("role", "system");
+                sysMsg.put("content", request.getSystemPrompt());
+                messages.add(sysMsg);
+            }
+            if (request.getMessages() != null) {
+                for (ChatMessage msg : request.getMessages()) {
+                    JSONObject msgObj = new JSONObject();
+                    msgObj.put("role", msg.getRole());
+                    msgObj.put("content", msg.getContent());
+                    messages.add(msgObj);
+                }
+            }
+
+            JSONObject input = new JSONObject();
+            input.put("messages", messages);
+            body.put("input", input);
+
+            JSONObject parameters = new JSONObject();
+            parameters.put("result_format", "message");
+            parameters.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : maxTokens);
+            parameters.put("temperature", request.getTemperature() != null ? request.getTemperature() : temperature);
+            parameters.put("incremental_output", true);
+            body.put("parameters", parameters);
+
+            URL url = new URL(baseUrl + "/api/v1/services/aigc/text-generation/generation");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+            connection.setRequestProperty("Accept", "text/event-stream");
+            connection.setRequestProperty("X-DashScope-SSE", "enable");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout(timeout * 1000);
+            connection.setReadTimeout(0);
+
+            try (OutputStream os = connection.getOutputStream()) {
+                os.write(body.toJSONString().getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            }
+
+            int statusCode = connection.getResponseCode();
+            if (statusCode != 200) {
+                try (BufferedReader errorReader = new BufferedReader(
+                        new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
+                    StringBuilder errorBody = new StringBuilder();
+                    String line;
+                    while ((line = errorReader.readLine()) != null) {
+                        errorBody.append(line);
+                    }
+                    log.error("百炼SSE调用失败: status={}, body={}", statusCode, errorBody);
+                }
+                onError.accept(new RuntimeException("AI服务暂时不可用"));
+                return;
+            }
+
+            StringBuilder fullContent = new StringBuilder();
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.isEmpty()) continue;
+                    // 跳过 SSE 注释行 (:HTTP_STATUS/200) 和 id/event 行
+                    if (line.startsWith(":") || line.startsWith("event:") || line.startsWith("id:")) continue;
+
+                    if (line.startsWith("data:")) {
+                        String data = line.substring(5).trim();
+                        if (data.isEmpty()) continue;
+
+                        try {
+                            JSONObject chunk = JSON.parseObject(data);
+                            JSONObject output = chunk.getJSONObject("output");
+                            if (output == null) continue;
+
+                            // Bailian 格式: output.choices[0].message.content
+                            JSONArray choices = output.getJSONArray("choices");
+                            if (choices != null && !choices.isEmpty()) {
+                                JSONObject choice = choices.getJSONObject(0);
+                                JSONObject message = choice.getJSONObject("message");
+                                if (message != null) {
+                                    String content = message.getString("content");
+                                    if (content != null && !content.isEmpty()) {
+                                        fullContent.append(content);
+                                        JSONObject chunkData = new JSONObject();
+                                        chunkData.put("content", content);
+                                        onChunk.accept(chunkData.toJSONString());
+                                    }
+                                }
+                                String finishReason = choice.getString("finish_reason");
+                                if ("stop".equals(finishReason)) break;
+                            }
+                        } catch (Exception e) {
+                            log.warn("解析百炼SSE失败: data={}", data, e);
+                        }
+                    }
+                }
+            }
+
+            onComplete.run();
+
+        } catch (Exception e) {
+            log.error("百炼SSE流式调用失败", e);
+            onError.accept(e);
+        }
     }
 
     @Override

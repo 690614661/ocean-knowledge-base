@@ -32,11 +32,24 @@
               <span class="school-text">GDOU</span>
             </div>
             <template v-if="user.token">
-              <div class="user-info">
-                <a-avatar :size="30" class="user-avatar">{{ user.name?.charAt(0) }}</a-avatar>
-                <span class="user-name">{{ user.name }}</span>
-              </div>
-              <a-button class="logout-btn" size="small" @click="logout">退出</a-button>
+              <a-dropdown>
+                <div class="user-info" style="cursor: pointer">
+                  <a-avatar :size="30" class="user-avatar">{{ user.name?.charAt(0) }}</a-avatar>
+                  <span class="user-name">{{ user.name }}</span>
+                  <down-outlined style="color: rgba(255,255,255,0.5); font-size: 10px; margin-left: 2px;" />
+                </div>
+                <template #overlay>
+                  <a-menu>
+                    <a-menu-item @click="$router.push('/profile')">
+                      <user-outlined /> 个人中心
+                    </a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item @click="logout">
+                      <logout-outlined /> 退出登录
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
             </template>
             <template v-else>
               <a-button type="primary" class="login-btn" size="small" @click="toLogin">登录</a-button>
@@ -73,12 +86,13 @@ import { defineComponent, computed } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
-import { HomeOutlined, ReadOutlined, RobotOutlined, SettingOutlined } from '@ant-design/icons-vue'
+import { HomeOutlined, ReadOutlined, RobotOutlined, SettingOutlined, DownOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons-vue'
 
 export default defineComponent({
   name: 'App',
   components: {
-    HomeOutlined, ReadOutlined, RobotOutlined, SettingOutlined
+    HomeOutlined, ReadOutlined, RobotOutlined, SettingOutlined,
+    DownOutlined, UserOutlined, LogoutOutlined
   },
   setup() {
     const store = useStore()
@@ -253,6 +267,26 @@ export default defineComponent({
 .logout-btn:hover {
   border-color: #ff4d4f;
   color: #ff4d4f;
+}
+
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: 6px;
+  height: 32px;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: #fff !important;
 }
 
 .app-content {

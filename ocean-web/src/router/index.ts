@@ -12,6 +12,12 @@ import AdminEbook from '../views/admin/EbookManage.vue'
 import AdminCategory from '../views/admin/CategoryManage.vue'
 import AdminDoc from '../views/admin/DocManage.vue'
 import AdminUser from '../views/admin/UserManage.vue'
+import ProfileLayout from '../views/profile/ProfileLayout.vue'
+import ProfileInfo from '../views/profile/ProfileInfo.vue'
+import ProfileEdit from '../views/profile/ProfileEdit.vue'
+import ChangePassword from '../views/profile/ChangePassword.vue'
+import Favorites from '../views/profile/Favorites.vue'
+import History from '../views/profile/History.vue'
 import NotFound from '../views/error/NotFound.vue'
 import ServerError from '../views/error/ServerError.vue'
 
@@ -32,6 +38,18 @@ const routes = [
       { path: 'user', name: 'AdminUser', component: AdminUser }
     ]
   },
+  {
+    path: '/profile',
+    component: ProfileLayout,
+    meta: { requiresAuth: true },
+    children: [
+      { path: '', name: 'ProfileInfo', component: ProfileInfo },
+      { path: 'edit', name: 'ProfileEdit', component: ProfileEdit },
+      { path: 'password', name: 'ChangePassword', component: ChangePassword },
+      { path: 'favorites', name: 'Favorites', component: Favorites },
+      { path: 'history', name: 'History', component: History }
+    ]
+  },
   { path: '/404', name: 'NotFound', component: NotFound },
   { path: '/500', name: 'ServerError', component: ServerError },
   { path: '/:pathMatch(.*)*', redirect: '/404' }
@@ -44,6 +62,7 @@ router.beforeEach((to, from, next) => {
   if (to.path.startsWith('/admin')) { if (!u.token) { next('/'); return } if (u.role !== 'admin') { next('/'); return } }
   if (to.path === '/ai' && !u.token) { next('/login'); return }
   if (to.path.startsWith('/note/edit') && !u.token) { next('/login'); return }
+  if (to.path.startsWith('/profile') && !u.token) { next('/login'); return }
   next()
 })
 export default router

@@ -33,6 +33,10 @@ request.interceptors.response.use(
     return res
   },
   error => {
+    // 忽略请求中止（如页面切换导致的轮询中断）
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED' || error.message === 'Request aborted') {
+      return Promise.reject(error)
+    }
     if (error.response) {
       if (error.response.status === 401) {
         message.error('登录已过期，请重新登录')

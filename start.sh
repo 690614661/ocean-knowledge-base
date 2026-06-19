@@ -20,6 +20,8 @@ FRONTEND_DIR="$PROJECT_DIR/ocean-web"
 BACKEND_LOG="$BACKEND_DIR/ocean-server.log"
 BACKEND_PID_FILE="$PROJECT_DIR/.backend.pid"
 FRONTEND_PID_FILE="$PROJECT_DIR/.frontend.pid"
+ES_PID_FILE="$PROJECT_DIR/.es.pid"
+ES_HOME="/d/elasticsearch-9.4.2"
 
 # ====== 工具函数 ======
 
@@ -85,6 +87,52 @@ check_infra() {
     if [ "$ok" = false ]; then
         echo -e "${YELLOW}提示: 请先启动 MySQL 和 Redis${NC}"
         echo ""
+    fi
+}
+
+# ====== ES 操作 ======
+
+es_start() {
+    if [ ! -d "$ES_HOME" ]; then
+        echo -e "  ${YELLOW}⚠️  ES 安装目录 $ES_HOME 不存在，跳过自动启动${NC}"
+        return
+    fi
+    echo -e "  ${YELLOW}⏳ 正在启动 ElasticSearch...${NC}"
+
+    # 通过 cmd 启动 ES，清除有问题的环境变量
+    cmd //c "set JAVA_HOME=&set CLASSPATH=.&set ES_JAVA_HOME=D:\\elasticsearch-9.4.2\\jdk&D:\\elasticsearch-9.4.2\\bin\\elasticsearch.bat" > /dev/null 2>&1 &
+    local pid=$!
+    echo "$pid" > "$ES_PID_FILE" || true
+
+    # 等待 ES 就绪（最多 60 秒）
+    local timeout=60
+    local elapsed=0
+    while [ $elapsed -lt $timeout ]; do
+        if curl -s http://localhost:9200 &>/dev/null; then
+            echo -e "  ${GREEN}✅ ElasticSearch 启动成功! PID: $(cat "$ES_PID_FILE")${NC}"
+            return
+        fi
+        sleep 3
+        elapsed=$((elapsed + 3))
+    done
+    echo -e "  ${YELLOW}⚠️  ES 启动超时，请手动启动（双击桌面 start-es.bat）${NC}"
+}
+
+es_stop() {
+    if [ -f "$ES_PID_FILE" ]; then
+        local pid=$(cat "$ES_PID_FILE")
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            sleep 2
+        fi
+        rm -f "$ES_PID_FILE" || true
+    fi
+    # 额外检查 9200 端口
+    local port_pid=$(netstat -ano 2>/dev/null | grep ":9200 " | grep LISTENING | awk '{print $NF}' | head -1)
+    if [ -n "$port_pid" ] && [ "$port_pid" != "0" ]; then
+        taskkill //F //PID "$port_pid" 2>/dev/null || kill "$port_pid" 2>/dev/null || true
+        sleep 2
+        echo -e "  ${GREEN}✅ ES 已停止${NC}"
     fi
 }
 
@@ -173,7 +221,8 @@ backend_status() {
     if [ -f "$BACKEND_PID_FILE" ] && kill -0 "$(cat "$BACKEND_PID_FILE")" 2>/dev/null; then
         echo -e "  ${GREEN}✅ 后端    运行中    PID: $(cat "$BACKEND_PID_FILE")    http://localhost:8080${NC}"
     elif netstat -ano 2>/dev/null | grep ":8080 " | grep LISTENING &>/dev/null; then
-        local pid=$(netstat -ano 2>/dev/null | grep ":8080 " | grep LISTENING | awk '{print $NF}')
+        local pid
+        pid=$(netstat -ano 2>/dev/null | grep ":8080 " | grep LISTENING | awk '{print $NF}')
         echo -e "  ${GREEN}✅ 后端    运行中    PID: $pid    http://localhost:8080 (未通过脚本启动)${NC}"
     else
         echo -e "  ${RED}❌ 后端    未运行${NC}"
@@ -187,11 +236,18 @@ frontend_start() {
 
     check_deps "frontend"
 
-    # 检查端口
+    # 检查端口，如被占用则自动释放
     if netstat -ano 2>/dev/null | grep ":3000 " | grep LISTENING &>/dev/null; then
-        echo -e "${YELLOW}⚠️  端口 3000 已被占用${NC}"
-        echo -e "  执行 $0 stop frontend 后再试"
-        return
+        local fp
+        fp=$(netstat -ano 2>/dev/null | grep ":3000 " | grep LISTENING | awk '{print $NF}')
+        echo -e "  ${YELLOW}端口 3000 被占用 (PID: $fp)，正在释放...${NC}"
+        taskkill //F //PID "$fp" 2>/dev/null || kill -9 "$fp" 2>/dev/null || true
+        sleep 2
+        if netstat -ano 2>/dev/null | grep ":3000 " | grep LISTENING &>/dev/null; then
+            echo -e "${RED}[ERROR] 无法释放端口 3000${NC}"
+            return
+        fi
+        echo -e "  ${GREEN}✅ 端口已释放${NC}"
     fi
 
     cd "$FRONTEND_DIR"
@@ -254,8 +310,9 @@ frontend_status() {
     if [ -f "$FRONTEND_PID_FILE" ] && kill -0 "$(cat "$FRONTEND_PID_FILE")" 2>/dev/null; then
         echo -e "  ${GREEN}✅ 前端    运行中    PID: $(cat "$FRONTEND_PID_FILE")    http://localhost:3000${NC}"
     elif netstat -ano 2>/dev/null | grep ":3000 " | grep LISTENING &>/dev/null; then
-        local pid=$(netstat -ano 2>/dev/null | grep ":3000 " | grep LISTENING | awk '{print $NF}')
-        echo -e "  ${GREEN}✅ 前端    运行中    PID: $pid    http://localhost:3000 (未通过脚本启动)${NC}"
+        local fp
+        fp=$(netstat -ano 2>/dev/null | grep ":3000 " | grep LISTENING | awk '{print $NF}')
+        echo -e "  ${GREEN}✅ 前端    运行中    PID: $fp    http://localhost:3000 (未通过脚本启动)${NC}"
     else
         echo -e "  ${RED}❌ 前端    未运行${NC}"
     fi
@@ -277,6 +334,10 @@ case "$ACTION" in
         if [ "$MODULE" = "all" ] || [ "$MODULE" = "backend" ]; then
             echo -e "${YELLOW}检查基础设施...${NC}"
             check_infra
+            # 自动启动 ES（如未运行）
+            if ! curl -s http://localhost:9200 &>/dev/null; then
+                es_start
+            fi
         fi
 
         case "$MODULE" in
@@ -312,6 +373,7 @@ case "$ACTION" in
             all)
                 backend_stop
                 frontend_stop
+                es_stop
                 echo ""
                 echo -e "${GREEN}✅ 已全部停止${NC}"
                 ;;
@@ -334,6 +396,9 @@ case "$ACTION" in
                 sleep 2
                 frontend_stop
                 sleep 2
+                es_stop
+                sleep 2
+                es_start
                 backend_start
                 echo ""
                 frontend_start
@@ -362,6 +427,15 @@ case "$ACTION" in
         echo ""
         backend_status
         frontend_status
+        if curl -s http://localhost:9200 &>/dev/null; then
+            if [ -f "$ES_PID_FILE" ]; then
+                echo -e "  ${GREEN}✅ ES       运行中    PID: $(cat "$ES_PID_FILE")    http://localhost:9200${NC}"
+            else
+                echo -e "  ${GREEN}✅ ES       运行中    http://localhost:9200 (未通过本脚本启动)${NC}"
+            fi
+        else
+            echo -e "  ${RED}❌ ES       未运行${NC}"
+        fi
         echo ""
         if netstat -ano 2>/dev/null | grep ":8080 " | grep LISTENING &>/dev/null; then
             echo -e "${GREEN}总阅读量: $(curl -s http://localhost:8080/api/snapshot/get-statistic 2>/dev/null | grep -o '"totalViewCount":[0-9]*' | cut -d: -f2)${NC}"

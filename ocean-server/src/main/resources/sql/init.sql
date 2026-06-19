@@ -148,6 +148,21 @@ CREATE TABLE IF NOT EXISTS `ai_usage_log` (
     KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI用量日志表';
 
+-- 用户收藏表
+CREATE TABLE IF NOT EXISTS `favorite` (
+    `id` BIGINT NOT NULL COMMENT '收藏ID（雪花算法）',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `doc_id` BIGINT NOT NULL COMMENT '文档ID',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_doc` (`user_id`, `doc_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_doc_id` (`doc_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户收藏表';
+
+-- doc 表新增收藏数字段
+ALTER TABLE `doc` ADD COLUMN `favorite_count` INT NOT NULL DEFAULT 0 COMMENT '收藏数' AFTER `vote_count`;
+
 -- 初始化管理员账号（密码: admin123，盐值: ocean_knowledge_salt_2026）
 -- MD5(admin123 + ocean_knowledge_salt_2026) = 需要程序计算
 INSERT INTO `user` (`id`, `login_name`, `name`, `password`, `role`) VALUES

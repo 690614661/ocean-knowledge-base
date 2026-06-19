@@ -47,8 +47,20 @@
               {{ voted ? '已点赞' : '点赞' }}
               <span class="vote-count">({{ currentDoc.voteCount || 0 }})</span>
             </a-button>
+            <a-button
+              v-if="user.token"
+              size="large"
+              class="fav-btn"
+              :class="{ 'favorited': favorited }"
+              @click="handleFavorite"
+              :loading="favLoading"
+            >
+              <span class="fav-icon">{{ favorited ? '⭐' : '☆' }}</span>
+              {{ favorited ? '已收藏' : '收藏' }}
+              <span class="vote-count">({{ currentDoc.favoriteCount || 0 }})</span>
+            </a-button>
             <div class="action-hint" v-else>
-              <a-button type="link" @click="$router.push('/login')">登录</a-button>后即可点赞
+              <a-button type="link" @click="$router.push('/login')">登录</a-button>后即可点赞和收藏
             </div>
           </div>
         </template>
@@ -66,7 +78,7 @@ import { defineComponent, ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
-import { docApi } from '../api'
+import { docApi, favoriteApi } from '../api'
 import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
@@ -80,6 +92,8 @@ export default defineComponent({
     const currentDoc = ref<any>(null)
     const selectedDocId = ref<number>(0)
     const voted = ref(false)
+    const favorited = ref(false)
+    const favLoading = ref(false)
 
     const loadDocs = async () => {
       const ebookId = Number(route.params.id)
@@ -127,6 +141,14 @@ export default defineComponent({
         const res: any = await docApi.detail(docId)
         currentDoc.value = res.content
         voted.value = false
+        favorited.value = false
+        // 检查收藏状态
+        if (user.value.token) {
+          try {
+            const favRes: any = await favoriteApi.check(docId)
+            favorited.value = favRes.content?.favorited || false
+          } catch {}
+        }
         nextTick(() => animateContentIn())
       } catch {
         message.error('文档加载失败')
@@ -143,13 +165,34 @@ export default defineComponent({
       } catch {}
     }
 
+    const handleFavorite = async () => {
+      if (!currentDoc.value || !user.value.token) return
+      favLoading.value = true
+      try {
+        const res: any = await favoriteApi.toggle(currentDoc.value.id)
+        const isFav = res.content?.favorited || false
+        favorited.value = isFav
+        if (currentDoc.value.favoriteCount !== undefined) {
+          currentDoc.value.favoriteCount += isFav ? 1 : -1
+          if (currentDoc.value.favoriteCount < 0) currentDoc.value.favoriteCount = 0
+        }
+        message.success(isFav ? '⭐ 收藏成功！' : '已取消收藏')
+      } catch (e: any) {
+        if (e?.response?.data?.message) {
+          message.error(e.response.data.message)
+        }
+      } finally {
+        favLoading.value = false
+      }
+    }
+
     onMounted(() => {
       loadDocs()
       // 目录树节点延迟动画
       setTimeout(() => animateSidebarIn(), 500)
     })
 
-    return { docTree, currentDoc, selectedDocId, user, voted, onDocSelect, handleVote }
+    return { docTree, currentDoc, selectedDocId, user, voted, favorited, favLoading, onDocSelect, handleVote, handleFavorite }
   }
 })
 </script>
@@ -336,6 +379,7 @@ export default defineComponent({
   background: linear-gradient(135deg, #1677ff, #4096ff);
   box-shadow: 0 4px 16px rgba(22, 119, 255, 0.3);
   transition: all 0.3s ease;
+  margin-right: 12px;
 }
 
 .vote-btn:hover {
@@ -347,6 +391,33 @@ export default defineComponent({
   background: #f0f0f0;
   color: #999;
   box-shadow: none;
+}
+
+.fav-btn {
+  border-radius: 24px;
+  height: 44px;
+  padding: 0 32px;
+  font-size: 15px;
+  border: 1px solid #e8ecf0;
+  background: white;
+  color: #666;
+  transition: all 0.3s ease;
+}
+
+.fav-btn:hover {
+  border-color: #faad14;
+  color: #faad14;
+}
+
+.fav-btn.favorited {
+  border-color: #faad14;
+  background: #fffbe6;
+  color: #faad14;
+}
+
+.fav-icon {
+  margin-right: 4px;
+  font-size: 16px;
 }
 
 .vote-icon {

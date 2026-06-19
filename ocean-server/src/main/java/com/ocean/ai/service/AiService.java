@@ -1,6 +1,8 @@
 package com.ocean.ai.service;
 
 import cn.hutool.core.util.IdUtil;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -18,6 +20,7 @@ import com.ocean.mapper.AiUsageLogMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -58,6 +61,128 @@ public class AiService {
             "要求：\n1. 使用 HTML 富文本格式\n2. 内容专业、准确、结构清晰\n3. 适合在线阅读，段落不宜过长";
 
     private static final int MAX_HISTORY_ROUNDS = 20;
+
+    public SseEmitter streamChat(String conversationId, String message, Long userId) {
+        // 创建或获取会话
+        AiConversation conversation;
+        if (conversationId == null || conversationId.isEmpty()) {
+            conversationId = IdUtil.simpleUUID();
+            conversation = new AiConversation();
+            conversation.setId(conversationId);
+            conversation.setUserId(userId);
+            conversation.setTitle(message.length() > 50 ? message.substring(0, 50) : message);
+            conversationMapper.insert(conversation);
+        } else {
+            conversation = conversationMapper.selectById(conversationId);
+            if (conversation == null || !conversation.getUserId().equals(userId)) {
+                throw new BusinessException("会话不存在");
+            }
+        }
+
+        // 保存用户消息
+        AiMessage userMsg = new AiMessage();
+        userMsg.setId(IdUtil.simpleUUID());
+        userMsg.setConversationId(conversationId);
+        userMsg.setRole("user");
+        userMsg.setContent(message);
+        messageMapper.insert(userMsg);
+
+        // 构建上下文
+        List<AiMessage> history = messageMapper.selectList(
+                new LambdaQueryWrapper<AiMessage>()
+                        .eq(AiMessage::getConversationId, conversationId)
+                        .orderByDesc(AiMessage::getCreateTime)
+                        .last("LIMIT " + (MAX_HISTORY_ROUNDS * 2)));
+        Collections.reverse(history);
+
+        List<ChatMessage> messages = new ArrayList<>();
+        for (AiMessage msg : history) {
+            messages.add(new ChatMessage(msg.getRole(), msg.getContent()));
+        }
+
+        AiRequest request = new AiRequest();
+        request.setSystemPrompt(CHAT_SYSTEM_PROMPT);
+        request.setMessages(messages);
+
+        String finalConversationId = conversationId;
+        long startTime = System.currentTimeMillis();
+        StringBuilder contentAccumulator = new StringBuilder();
+
+        SseEmitter emitter = new SseEmitter(120000L);
+
+        aiProvider.streamChat(
+            request,
+            // onChunk: 每段内容
+            chunk -> {
+                contentAccumulator.append(JSON.parseObject(chunk).getString("content"));
+                try {
+                    emitter.send(SseEmitter.event()
+                        .name("message")
+                        .data(chunk));
+                } catch (Exception e) {
+                    throw new RuntimeException("SSE发送失败", e);
+                }
+            },
+            // onUsage: 用量信息（可选）
+            usage -> {
+                try {
+                    emitter.send(SseEmitter.event()
+                        .name("usage")
+                        .data(usage));
+                } catch (Exception e) {
+                    log.warn("SSE发送用量信息失败", e);
+                }
+            },
+            // onComplete: 完成
+            () -> {
+                try {
+                    // 保存AI消息
+                    String fullContent = contentAccumulator.toString();
+                    AiMessage assistantMsg = new AiMessage();
+                    assistantMsg.setId(IdUtil.simpleUUID());
+                    assistantMsg.setConversationId(finalConversationId);
+                    assistantMsg.setRole("assistant");
+                    assistantMsg.setContent(fullContent);
+                    messageMapper.insert(assistantMsg);
+
+                    // 记录用量（从流式响应中无法获取精确token数，用估算值）
+                    int estimatedTokens = (int) Math.ceil(fullContent.length() / 2.0);
+                    BigDecimal cost = calculateCost(0, estimatedTokens);
+                    long latency = System.currentTimeMillis() - startTime;
+                    logUsage(userId, "chat", 0, estimatedTokens, estimatedTokens, cost, latency, "success");
+
+                    // 发送完成事件
+                    JSONObject doneData = new JSONObject();
+                    doneData.put("conversationId", finalConversationId);
+                    emitter.send(SseEmitter.event()
+                        .name("done")
+                        .data(doneData.toJSONString()));
+                    emitter.complete();
+                } catch (Exception e) {
+                    log.error("SSE完成回调处理失败", e);
+                    try {
+                        emitter.completeWithError(e);
+                    } catch (Exception ignored) {}
+                }
+            },
+            // onError: 错误
+            error -> {
+                log.error("SSE流式对话出错", error);
+                try {
+                    JSONObject errorData = new JSONObject();
+                    errorData.put("message", "AI响应中断，请重试");
+                    emitter.send(SseEmitter.event()
+                        .name("error")
+                        .data(errorData.toJSONString()));
+                    emitter.complete();
+                } catch (Exception e) {
+                    emitter.completeWithError(error);
+                }
+            }
+        );
+
+        return emitter;
+    }
 
     public Map<String, Object> chat(String conversationId, String message, Long userId) {
         // 创建或获取会话

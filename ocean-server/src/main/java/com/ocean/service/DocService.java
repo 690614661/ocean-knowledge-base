@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -66,6 +67,31 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
         // 缓存5分钟
         redisTemplate.opsForValue().set(cacheKey, tree, 5, java.util.concurrent.TimeUnit.MINUTES);
         return tree;
+    }
+
+    public Doc getDetail(Long id, Long userId) {
+        Doc doc = getDetail(id);
+        // 如果用户已登录，记录阅读历史
+        if (userId != null) {
+            recordHistory(userId, id, doc);
+        }
+        return doc;
+    }
+
+    private void recordHistory(Long userId, Long docId, Doc doc) {
+        try {
+            String key = Constant.HISTORY_REDIS_PREFIX + userId;
+            // 去重：删除已有记录
+            redisTemplate.opsForList().remove(key, 0, String.valueOf(docId));
+            // 左推到列表头部（最新在最前）
+            redisTemplate.opsForList().leftPush(key, String.valueOf(docId));
+            // 裁剪最多50条
+            redisTemplate.opsForList().trim(key, 0, Constant.HISTORY_MAX_SIZE - 1);
+            // 刷新TTL
+            redisTemplate.expire(key, Constant.HISTORY_TTL, TimeUnit.DAYS);
+        } catch (Exception e) {
+            log.warn("记录阅读历史失败: userId={}, docId={}", userId, docId, e);
+        }
     }
 
     public Doc getDetail(Long id) {

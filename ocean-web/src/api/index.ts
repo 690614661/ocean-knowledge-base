@@ -27,7 +27,11 @@ export const userApi = {
   list: (params: any) => request.get('/api/user/list', { params }),
   save: (data: any) => request.post('/api/user/save', data),
   delete: (id: number | string) => request.delete(`/api/user/delete/${id}`),
-  resetPassword: (data: any) => request.post('/api/user/reset-password', data)
+  resetPassword: (data: any) => request.post('/api/user/reset-password', data),
+  profile: () => request.get('/api/user/profile'),
+  updateProfile: (data: any) => request.post('/api/user/profile', data),
+  changePassword: (data: any) => request.post('/api/user/change-password', data),
+  history: (params: any) => request.get('/api/user/history', { params })
 }
 
 export const snapshotApi = {
@@ -59,5 +63,22 @@ export const aiApi = {
   conversations: (params?: any) => request.get('/api/ai/conversations', { params }),
   messages: (id: string) => request.get(`/api/ai/conversations/${id}/messages`),
   delete: (id: string) => request.delete(`/api/ai/conversations/${id}`),
-  usage: () => request.get('/api/ai/usage')
+  usage: () => request.get('/api/ai/usage'),
+  chatStream: (data: any) => {
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}')
+    return fetch('/api/ai/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': user.token || ''
+      },
+      body: JSON.stringify(data)
+    })
+  }
+}
+
+export const favoriteApi = {
+  toggle: (docId: number | string) => request.post(`/api/favorite/toggle/${docId}`),
+  list: (params: any) => request.get('/api/favorite/list', { params }),
+  check: (docId: number | string) => request.get(`/api/favorite/check/${docId}`)
 }

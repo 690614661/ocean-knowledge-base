@@ -15,6 +15,11 @@ public class Constant {
 
     public static final String ROLE_ADMIN = "admin";
 
+    // 阅读历史
+    public static final String HISTORY_REDIS_PREFIX = "history:";
+    public static final int HISTORY_MAX_SIZE = 50;
+    public static final long HISTORY_TTL = 30; // 天
+
     public static final long TOKEN_EXPIRATION = 86400000L; // 24h
 
     private Constant() {

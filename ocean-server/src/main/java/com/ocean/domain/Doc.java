@@ -28,6 +28,8 @@ public class Doc implements Serializable {
 
     private Integer voteCount;
 
+    private Integer favoriteCount;
+
     @TableField(fill = FieldFill.INSERT)
     private Date createTime;
 
