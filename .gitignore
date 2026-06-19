@@ -1,9 +1,13 @@
-﻿# IDE
-.idea/
-*.iml
+﻿# IDE（保留项目配置，忽略个人文件）
+.idea/workspace.xml
+.idea/tasks/
+.idea/shelf/
+.idea/usage.statistics.xml
 *.ipr
 *.iws
 .vscode/
+
+*.iml
 
 # Backend
 ocean-server/target/
