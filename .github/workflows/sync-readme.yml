@@ -1,0 +1,32 @@
+name: Sync README for GitHub
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  sync-readme:
+    runs-on: ubuntu-latest
+    if: github.server_url == 'https://github.com'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Replace README with GitHub version
+        run: |
+          if [ -f README.github.md ]; then
+            cp README.github.md README.md
+            rm README.github.md
+          fi
+      - name: Commit changes
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add README.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: sync README for GitHub"
+            git push
+          fi
