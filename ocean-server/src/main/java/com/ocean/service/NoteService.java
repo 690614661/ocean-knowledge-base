@@ -9,13 +9,16 @@ import com.ocean.common.PageResp;
 import com.ocean.domain.Note;
 import com.ocean.domain.dto.NoteSaveReq;
 import com.ocean.mapper.NoteMapper;
-import com.ocean.util.JwtUtil;
 import com.ocean.util.XssFilterUtil;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
 public class NoteService extends ServiceImpl<NoteMapper, Note> {
+
+    @Autowired
+    private SearchService searchService;
 
     public PageResp<Note> myList(int page, int size, Long userId) {
         IPage<Note> notePage = this.page(new Page<>(page, size),
@@ -46,8 +49,11 @@ public class NoteService extends ServiceImpl<NoteMapper, Note> {
     }
 
     public void save(NoteSaveReq req, Long userId) {
-        Note note = new Note();
-        if (req.getId() != null) {
+        Note note;
+        boolean wasPublic = false;
+        boolean isNew = req.getId() == null;
+
+        if (!isNew) {
             note = this.getById(req.getId());
             if (note == null) {
                 throw new BusinessException("笔记不存在");
@@ -55,17 +61,32 @@ public class NoteService extends ServiceImpl<NoteMapper, Note> {
             if (!note.getUserId().equals(userId)) {
                 throw new BusinessException("只能编辑自己的笔记");
             }
+            wasPublic = note.getIsPublic() == 1;
         } else {
+            note = new Note();
             note.setUserId(userId);
             note.setViewCount(0);
             note.setVoteCount(0);
         }
+
         note.setTitle(req.getTitle());
         if (req.getContent() != null) {
             note.setContent(XssFilterUtil.filterRichText(req.getContent()));
         }
-        note.setIsPublic(req.getIsPublic() != null ? req.getIsPublic() : 0);
+        Integer newIsPublic = req.getIsPublic() != null ? req.getIsPublic() : 0;
+        note.setIsPublic(newIsPublic);
         this.saveOrUpdate(note);
+
+        // 同步 ES 索引
+        boolean nowPublic = newIsPublic == 1;
+        if (nowPublic) {
+            // 公开笔记 → 同步到 ES
+            searchService.syncNoteIndex(note.getId(), note.getTitle(), note.getContent(), userId, true);
+        } else if (wasPublic && !nowPublic) {
+            // 从公开改为私有 → 从 ES 删除
+            searchService.deleteNoteIndex(note.getId());
+        }
+        // 如果一直是私有笔记，不做任何操作
     }
 
     public void delete(Long id, Long userId) {
@@ -77,6 +98,11 @@ public class NoteService extends ServiceImpl<NoteMapper, Note> {
             throw new BusinessException("只能删除自己的笔记");
         }
         this.removeById(id);
+
+        // 如果是公开笔记，同步删除 ES 索引
+        if (note.getIsPublic() == 1) {
+            searchService.deleteNoteIndex(id);
+        }
     }
 
     public void vote(Long id, String ip) {
