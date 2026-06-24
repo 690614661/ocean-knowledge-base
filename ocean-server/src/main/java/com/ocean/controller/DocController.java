@@ -3,6 +3,7 @@ package com.ocean.controller;
 import com.ocean.common.CommonResp;
 import com.ocean.common.Constant;
 import com.ocean.domain.Doc;
+import com.ocean.domain.dto.BatchDeleteReq;
 import com.ocean.domain.dto.DocSaveReq;
 import com.ocean.interceptor.RateLimit;
 import com.ocean.service.DocService;
@@ -68,6 +69,13 @@ public class DocController {
     public CommonResp<?> delete(@PathVariable Long id) {
         docService.delete(id);
         return CommonResp.ok("删除成功");
+    }
+
+    @ApiOperation("批量删除文档")
+    @PostMapping("/delete/batch")
+    public CommonResp<?> deleteBatch(@Validated @RequestBody BatchDeleteReq req) {
+        docService.deleteBatch(req.getIds());
+        return CommonResp.ok("批量删除成功");
     }
 
     @ApiOperation("文档点赞")

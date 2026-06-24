@@ -6,6 +6,9 @@
         <a-select v-model:value="ebookId" placeholder="选择电子书" style="width: 200px; margin-right: 12px" @change="loadDocs">
           <a-select-option v-for="e in ebooks" :key="e.id" :value="e.id">{{ e.name }}</a-select-option>
         </a-select>
+        <a-button danger class="batch-delete-btn" :disabled="selectedRowKeys.length === 0" @click="handleBatchDelete">
+          批量删除 ({{ selectedRowKeys.length }})
+        </a-button>
         <a-button type="primary" class="add-btn" :disabled="!ebookId" @click="showModal()">+ 新增文档</a-button>
       </div>
     </div>
@@ -17,6 +20,10 @@
       :data-source="docTree"
       row-key="id"
       :pagination="false"
+      :row-selection="{
+        selectedRowKeys: selectedRowKeys,
+        onChange: (keys: any[]) => { selectedRowKeys = keys }
+      }"
       default-expand-all-rows
       class="ocean-table"
     >
@@ -85,6 +92,7 @@ export default defineComponent({
     const modalVisible = ref(false)
     const form = ref<any>({})
     const assisting = ref<string | null>(null)
+    const selectedRowKeys = ref<number[]>([])
     const columns = [
       { title: '名称', dataIndex: 'name', key: 'name' },
       { title: '阅读数', dataIndex: 'viewCount', key: 'viewCount', width: 80 },
@@ -135,6 +143,18 @@ export default defineComponent({
       loadDocs()
     }
 
+    const handleBatchDelete = async () => {
+      if (selectedRowKeys.value.length === 0) return
+      try {
+        await docApi.deleteBatch(selectedRowKeys.value)
+        message.success(`批量删除成功，共删除 ${selectedRowKeys.value.length} 条`)
+        selectedRowKeys.value = []
+        loadDocs()
+      } catch {
+        message.error('批量删除失败')
+      }
+    }
+
     const aiDocAssist = async (type: string) => {
       if (assisting.value) return
       assisting.value = type
@@ -153,7 +173,7 @@ export default defineComponent({
 
     onMounted(loadEbooks)
 
-    return { ebooks, ebookId, docTree, columns, modalVisible, form, assisting, showModal, handleSave, handleDelete, loadDocs, aiDocAssist }
+    return { ebooks, ebookId, docTree, columns, selectedRowKeys, modalVisible, form, assisting, showModal, handleSave, handleDelete, handleBatchDelete, loadDocs, aiDocAssist }
   }
 })
 </script>

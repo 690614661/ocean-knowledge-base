@@ -113,20 +113,35 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
             throw new BusinessException("电子书不存在");
         }
 
-        // 级联删除关联文档和内容
-        List<Doc> docs = docMapper.selectList(
-                new LambdaQueryWrapper<Doc>().eq(Doc::getEbookId, id));
-        for (Doc doc : docs) {
-            // 递归删除子文档
-            deleteDocTree(doc.getId());
-        }
-
-        // 删除电子书
-        this.removeById(id);
+        deleteEbookCascade(id);
 
         // 清除缓存
         redisTemplate.delete(Constant.CACHE_EBOOK_LIST);
         redisTemplate.delete(Constant.CACHE_DOC_TREE_PREFIX + id);
+    }
+
+    /**
+     * 批量删除电子书（级联删除关联文档和内容）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteBatch(List<Long> ids) {
+        for (Long id : ids) {
+            Ebook ebook = this.getById(id);
+            if (ebook == null) continue;
+            deleteEbookCascade(id);
+            redisTemplate.delete(Constant.CACHE_DOC_TREE_PREFIX + id);
+        }
+        redisTemplate.delete(Constant.CACHE_EBOOK_LIST);
+    }
+
+    /** 内部：级联删除电子书及其文档 */
+    private void deleteEbookCascade(Long id) {
+        List<Doc> docs = docMapper.selectList(
+                new LambdaQueryWrapper<Doc>().eq(Doc::getEbookId, id));
+        for (Doc doc : docs) {
+            deleteDocTree(doc.getId());
+        }
+        this.removeById(id);
     }
 
     private void deleteDocTree(Long docId) {

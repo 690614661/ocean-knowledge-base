@@ -242,6 +242,14 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         this.removeById(id);
     }
 
+    /**
+     * 批量删除用户
+     */
+    public void deleteBatch(List<Long> ids) {
+        // 检查是否包含当前登录用户（由调用方传入 userId）
+        this.removeByIds(ids);
+    }
+
     // ==================== 个人中心 ====================
 
     public User getProfile(Long userId) {

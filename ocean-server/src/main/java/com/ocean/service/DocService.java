@@ -164,6 +164,13 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
     }
 
     @Transactional
+    public void deleteBatch(List<Long> ids) {
+        for (Long id : ids) {
+            delete(id);
+        }
+    }
+
+    @Transactional
     public void delete(Long id) {
         // 先获取文档信息（删除前）
         Doc docToDelete = this.getById(id);

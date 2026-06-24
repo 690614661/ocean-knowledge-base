@@ -2,7 +2,12 @@
   <div>
     <div class="page-header">
       <h2>👤 用户管理</h2>
-      <a-button type="primary" class="add-btn" @click="showModal()">+ 新增用户</a-button>
+      <div class="header-actions">
+        <a-button danger class="batch-delete-btn" :disabled="selectedRowKeys.length === 0" @click="handleBatchDelete">
+          批量删除 ({{ selectedRowKeys.length }})
+        </a-button>
+        <a-button type="primary" class="add-btn" @click="showModal()">+ 新增用户</a-button>
+      </div>
     </div>
 
     <a-table
@@ -14,6 +19,10 @@
         onChange: (p) => { page = p; loadUsers() }
       }"
       row-key="id"
+      :row-selection="{
+        selectedRowKeys: selectedRowKeys,
+        onChange: (keys: any[]) => { selectedRowKeys = keys }
+      }"
       class="ocean-table"
     >
       <template #bodyCell="{ column, record }">
@@ -82,6 +91,7 @@ export default defineComponent({
     const resetModalVisible = ref(false)
     const resetUserId = ref<number>(0)
     const resetPasswd = ref('')
+    const selectedRowKeys = ref<number[]>([])
     const columns = [
       { title: '登录名', dataIndex: 'loginName', key: 'loginName' },
       { title: '昵称', dataIndex: 'name', key: 'name' },
@@ -127,6 +137,18 @@ export default defineComponent({
       loadUsers()
     }
 
+    const handleBatchDelete = async () => {
+      if (selectedRowKeys.value.length === 0) return
+      try {
+        await userApi.deleteBatch(selectedRowKeys.value)
+        message.success(`批量删除成功，共删除 ${selectedRowKeys.value.length} 条`)
+        selectedRowKeys.value = []
+        loadUsers()
+      } catch {
+        message.error('批量删除失败')
+      }
+    }
+
     const showResetModal = (record: any) => {
       resetUserId.value = record.id
       resetPasswd.value = ''
@@ -142,9 +164,9 @@ export default defineComponent({
     onMounted(loadUsers)
 
     return {
-      users, total, page, size, columns, modalVisible, form,
+      users, total, page, size, columns, modalVisible, form, selectedRowKeys,
       resetModalVisible, resetPasswd,
-      showModal, handleSave, handleDelete, showResetModal, handleResetPassword, loadUsers
+      showModal, handleSave, handleDelete, handleBatchDelete, showResetModal, handleResetPassword, loadUsers
     }
   }
 })

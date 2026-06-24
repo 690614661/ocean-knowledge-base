@@ -43,6 +43,9 @@
 
       <a-tab-pane key="my" tab="📂 我的笔记" v-if="user.token">
         <div class="notes-toolbar">
+          <a-button danger class="batch-delete-btn" :disabled="selectedKeys.length === 0" @click="handleBatchDelete">
+            批量删除 ({{ selectedKeys.length }})
+          </a-button>
           <a-button type="primary" class="create-btn" @click="$router.push('/note/edit')">
             ✏️ 新建笔记
           </a-button>
@@ -57,6 +60,12 @@
             <a-list-item class="note-card">
               <a-list-item-meta>
                 <template #title>
+                  <a-checkbox
+                    v-if="activeTab === 'my'"
+                    :checked="selectedKeys.includes(item.id)"
+                    @change="toggleSelect(item.id)"
+                    style="margin-right: 8px"
+                  />
                   <a @click="$router.push(`/note/edit/${item.id}`)">{{ item.title }}</a>
                 </template>
                 <template #description>
@@ -101,6 +110,16 @@ export default defineComponent({
     const myNotes = ref<any[]>([])
     const loading = ref(false)
     const searchKeyword = ref('')
+    const selectedKeys = ref<number[]>([])
+
+    const toggleSelect = (id: number) => {
+      const idx = selectedKeys.value.indexOf(id)
+      if (idx >= 0) {
+        selectedKeys.value.splice(idx, 1)
+      } else {
+        selectedKeys.value.push(id)
+      }
+    }
 
     const animateCards = () => {
       const cards = document.querySelectorAll('.ant-list-item')
@@ -147,9 +166,21 @@ export default defineComponent({
       loadMy()
     }
 
+    const handleBatchDelete = async () => {
+      if (selectedKeys.value.length === 0) return
+      try {
+        await noteApi.deleteBatch(selectedKeys.value)
+        message.success(`批量删除成功，共删除 ${selectedKeys.value.length} 条`)
+        selectedKeys.value = []
+        loadMy()
+      } catch {
+        message.error('批量删除失败')
+      }
+    }
+
     onMounted(() => { loadPublic(); loadMy() })
 
-    return { user, activeTab, publicNotes, myNotes, loading, searchKeyword, loadPublic, handleDelete }
+    return { user, activeTab, publicNotes, myNotes, loading, searchKeyword, selectedKeys, loadPublic, toggleSelect, handleDelete, handleBatchDelete }
   }
 })
 </script>

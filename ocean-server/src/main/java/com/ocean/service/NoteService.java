@@ -126,6 +126,21 @@ public class NoteService extends ServiceImpl<NoteMapper, Note> {
         }
     }
 
+    /**
+     * 批量删除笔记
+     */
+    public void deleteBatch(List<Long> ids, Long userId) {
+        for (Long id : ids) {
+            Note note = this.getById(id);
+            if (note == null) continue;
+            if (!note.getUserId().equals(userId)) continue;
+            this.removeById(id);
+            if (note.getIsPublic() == 1) {
+                searchService.deleteNoteIndex(id);
+            }
+        }
+    }
+
     public void vote(Long id, String ip) {
         Note note = this.getById(id);
         if (note == null) {

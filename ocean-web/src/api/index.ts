@@ -3,7 +3,8 @@ import request from './request'
 export const ebookApi = {
   list: (params: any) => request.get('/api/ebook/list', { params }),
   save: (data: any) => request.post('/api/ebook/save', data),
-  delete: (id: number | string) => request.delete(`/api/ebook/delete/${id}`)
+  delete: (id: number | string) => request.delete(`/api/ebook/delete/${id}`),
+  deleteBatch: (ids: number[]) => request.post('/api/ebook/delete/batch', { ids })
 }
 
 export const categoryApi = {
@@ -18,7 +19,8 @@ export const docApi = {
   detail: (id: number | string) => request.get(`/api/doc/${id}`),
   save: (data: any) => request.post('/api/doc/save', data),
   delete: (id: number | string) => request.delete(`/api/doc/delete/${id}`),
-  vote: (id: number | string) => request.post(`/api/doc/vote/${id}`)
+  vote: (id: number | string) => request.post(`/api/doc/vote/${id}`),
+  deleteBatch: (ids: number[]) => request.post('/api/doc/delete/batch', { ids })
 }
 
 export const userApi = {
@@ -27,6 +29,7 @@ export const userApi = {
   list: (params: any) => request.get('/api/user/list', { params }),
   save: (data: any) => request.post('/api/user/save', data),
   delete: (id: number | string) => request.delete(`/api/user/delete/${id}`),
+  deleteBatch: (ids: number[]) => request.post('/api/user/delete/batch', { ids }),
   resetPassword: (data: any) => request.post('/api/user/reset-password', data),
   profile: () => request.get('/api/user/profile'),
   updateProfile: (data: any) => request.post('/api/user/profile', data),
@@ -56,7 +59,8 @@ export const noteApi = {
   detail: (id: number | string) => request.get(`/api/note/${id}`),
   save: (data: any) => request.post('/api/note/save', data),
   delete: (id: number | string) => request.delete(`/api/note/delete/${id}`),
-  vote: (id: number | string) => request.post(`/api/note/vote/${id}`)
+  vote: (id: number | string) => request.post(`/api/note/vote/${id}`),
+  deleteBatch: (ids: number[]) => request.post('/api/note/delete/batch', { ids })
 }
 
 export const aiApi = {
@@ -81,6 +85,8 @@ export const aiApi = {
 
 export const favoriteApi = {
   toggle: (docId: number | string) => request.post(`/api/favorite/toggle/${docId}`),
-  list: (params: any) => request.get('/api/favorite/list', { params }),
-  check: (docId: number | string) => request.get(`/api/favorite/check/${docId}`)
+  check: (docId: number | string) => request.get(`/api/favorite/check/${docId}`),
+  noteToggle: (noteId: number | string) => request.post(`/api/favorite/note/toggle/${noteId}`),
+  noteCheck: (noteId: number | string) => request.get(`/api/favorite/note/check/${noteId}`),
+  list: (params: any) => request.get('/api/favorite/list', { params })
 }

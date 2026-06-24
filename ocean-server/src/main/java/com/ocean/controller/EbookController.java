@@ -3,6 +3,7 @@ package com.ocean.controller;
 import com.ocean.common.CommonResp;
 import com.ocean.common.PageResp;
 import com.ocean.domain.Ebook;
+import com.ocean.domain.dto.BatchDeleteReq;
 import com.ocean.domain.dto.EbookSaveReq;
 import com.ocean.service.EbookService;
 import io.swagger.annotations.Api;
@@ -41,5 +42,12 @@ public class EbookController {
     public CommonResp<?> delete(@PathVariable Long id) {
         ebookService.delete(id);
         return CommonResp.ok("删除成功");
+    }
+
+    @ApiOperation("批量删除电子书")
+    @PostMapping("/delete/batch")
+    public CommonResp<?> deleteBatch(@Validated @RequestBody BatchDeleteReq req) {
+        ebookService.deleteBatch(req.getIds());
+        return CommonResp.ok("批量删除成功");
     }
 }

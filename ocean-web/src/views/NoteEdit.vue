@@ -10,6 +10,15 @@
           un-checked-children="🔒 私有"
           class="visibility-switch"
         />
+        <a-button
+          v-if="form.id"
+          class="fav-btn"
+          :class="{ 'fav-active': favorited }"
+          @click="handleFavorite"
+          :loading="favLoading"
+        >
+          {{ favorited ? '⭐ 已收藏' : '☆ 收藏' }}
+        </a-button>
       </div>
 
       <div class="note-edit-card">
@@ -56,7 +65,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { noteApi, aiApi } from '../api'
+import { noteApi, aiApi, favoriteApi } from '../api'
 import { message } from 'ant-design-vue'
 
 export default defineComponent({
@@ -67,6 +76,8 @@ export default defineComponent({
     const form = ref<any>({ title: '', content: '', isPublic: 0 })
     const saving = ref(false)
     const generating = ref<string | null>(null)
+    const favorited = ref(false)
+    const favLoading = ref(false)
     const isPublic = computed({
       get: () => form.value.isPublic === 1,
       set: (val: boolean) => { form.value.isPublic = val ? 1 : 0 }
@@ -78,11 +89,30 @@ export default defineComponent({
         try {
           const res: any = await noteApi.detail(id)
           form.value = res.content
+          // 检查收藏状态
+          try {
+            const favRes: any = await favoriteApi.noteCheck(id)
+            favorited.value = favRes.content?.favorited || false
+          } catch {}
         } catch {
           message.error('笔记加载失败')
         }
       }
     })
+
+    const handleFavorite = async () => {
+      if (!form.value.id) return
+      favLoading.value = true
+      try {
+        const res: any = await favoriteApi.noteToggle(form.value.id)
+        favorited.value = res.content?.favorited || false
+        message.success(favorited.value ? '⭐ 收藏成功！' : '已取消收藏')
+      } catch {
+        message.error('操作失败')
+      } finally {
+        favLoading.value = false
+      }
+    }
 
     const handleSave = async () => {
       if (!form.value.title?.trim()) {
@@ -119,7 +149,7 @@ export default defineComponent({
       }
     }
 
-    return { form, isPublic, saving, generating, handleSave, aiGenerate }
+    return { form, isPublic, saving, generating, favorited, favLoading, handleFavorite, handleSave, aiGenerate }
   }
 })
 </script>
@@ -234,6 +264,18 @@ export default defineComponent({
 .save-actions {
   display: flex;
   gap: 8px;
+}
+
+.fav-btn {
+  border-radius: 10px;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.fav-btn.fav-active {
+  color: #faad14;
+  border-color: #faad14;
+  background: #fffbe6;
 }
 
 .save-btn {

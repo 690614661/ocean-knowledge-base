@@ -17,7 +17,11 @@ public class Favorite implements Serializable {
 
     private Long userId;
 
+    /** 目标ID（文档ID或笔记ID） */
     private Long docId;
+
+    /** 收藏类型：1文档 2笔记 */
+    private Integer targetType;
 
     @TableField(fill = FieldFill.INSERT)
     private Date createTime;

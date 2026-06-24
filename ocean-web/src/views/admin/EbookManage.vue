@@ -2,7 +2,12 @@
   <div>
     <div class="page-header">
       <h2>📖 电子书管理</h2>
-      <a-button type="primary" class="add-btn" @click="showModal()">+ 新增电子书</a-button>
+      <div class="header-actions">
+        <a-button danger class="batch-delete-btn" :disabled="selectedRowKeys.length === 0" @click="handleBatchDelete">
+          批量删除 ({{ selectedRowKeys.length }})
+        </a-button>
+        <a-button type="primary" class="add-btn" @click="showModal()">+ 新增电子书</a-button>
+      </div>
     </div>
 
     <a-table
@@ -16,6 +21,10 @@
         onChange: (p) => { page = p; loadEbooks() }
       }"
       row-key="id"
+      :row-selection="{
+        selectedRowKeys: selectedRowKeys,
+        onChange: (keys: any[]) => { selectedRowKeys = keys }
+      }"
       class="ocean-table"
     >
       <template #bodyCell="{ column, record }">
@@ -91,6 +100,7 @@ export default defineComponent({
     const categories = ref<any[]>([])
     const modalVisible = ref(false)
     const form = ref<any>({})
+    const selectedRowKeys = ref<number[]>([])
     const columns = [
       { title: '名称', dataIndex: 'name', key: 'name' },
       { title: '文档数', dataIndex: 'docCount', key: 'docCount', width: 80 },
@@ -140,6 +150,18 @@ export default defineComponent({
       loadEbooks()
     }
 
+    const handleBatchDelete = async () => {
+      if (selectedRowKeys.value.length === 0) return
+      try {
+        await ebookApi.deleteBatch(selectedRowKeys.value)
+        message.success(`批量删除成功，共删除 ${selectedRowKeys.value.length} 条`)
+        selectedRowKeys.value = []
+        loadEbooks()
+      } catch {
+        message.error('批量删除失败')
+      }
+    }
+
     const handleCoverUpload = async (options: any) => {
       const formData = new FormData()
       formData.append('file', options.file)
@@ -158,12 +180,51 @@ export default defineComponent({
       categories.value = res.content
     })
 
-    return { ebooks, total, page, size, columns, category1List, category2List, modalVisible, form, showModal, handleSave, handleDelete, loadEbooks, handleCoverUpload }
+    return { ebooks, total, page, size, selectedRowKeys, columns, category1List, category2List, modalVisible, form, showModal, handleSave, handleDelete, handleBatchDelete, loadEbooks, handleCoverUpload }
   }
 })
 </script>
 
 <style scoped>
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+  position: relative;
+  padding-left: 16px;
+}
+
+.page-header h2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 20px;
+  background: linear-gradient(135deg, #1677ff, #4096ff);
+  border-radius: 2px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-delete-btn {
+  border-radius: 10px;
+  font-weight: 500;
+}
+
 .add-btn {
   border-radius: 10px;
   background: linear-gradient(135deg, #1677ff, #4096ff);

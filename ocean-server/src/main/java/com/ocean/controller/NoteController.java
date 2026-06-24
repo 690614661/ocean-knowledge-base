@@ -4,6 +4,7 @@ import com.ocean.common.CommonResp;
 import com.ocean.common.Constant;
 import com.ocean.common.PageResp;
 import com.ocean.domain.Note;
+import com.ocean.domain.dto.BatchDeleteReq;
 import com.ocean.domain.dto.NoteSaveReq;
 import com.ocean.interceptor.RateLimit;
 import com.ocean.service.NoteService;
@@ -81,6 +82,18 @@ public class NoteController {
         Long userId = JwtUtil.getUserIdFromToken(token);
         noteService.delete(id, userId);
         return CommonResp.ok("删除成功");
+    }
+
+    @ApiOperation("批量删除笔记")
+    @PostMapping("/delete/batch")
+    public CommonResp<?> deleteBatch(@Validated @RequestBody BatchDeleteReq req, HttpServletRequest request) {
+        String token = request.getHeader("token");
+        if (token == null || !JwtUtil.validateToken(token)) {
+            return CommonResp.fail("登录已过期，请重新登录");
+        }
+        Long userId = JwtUtil.getUserIdFromToken(token);
+        noteService.deleteBatch(req.getIds(), userId);
+        return CommonResp.ok("批量删除成功");
     }
 
     @ApiOperation("笔记点赞")

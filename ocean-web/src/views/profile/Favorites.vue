@@ -4,16 +4,32 @@
       <h3>我的收藏</h3>
     </div>
     <div class="card-body">
-      <a-empty v-if="!loading && list.length === 0" description="暂无收藏" />
-      <a-list v-else :data-source="list" :loading="loading">
+      <div class="filter-bar" style="margin-bottom: 16px">
+        <a-space>
+          <a-button :type="filterType === 'all' ? 'primary' : 'default'" size="small" @click="filterType = 'all'">全部</a-button>
+          <a-button :type="filterType === 1 ? 'primary' : 'default'" size="small" @click="filterType = 1">📄 文档</a-button>
+          <a-button :type="filterType === 2 ? 'primary' : 'default'" size="small" @click="filterType = 2">📝 笔记</a-button>
+        </a-space>
+      </div>
+      <a-empty v-if="!loading && filteredList.length === 0" description="暂无收藏" />
+      <a-list v-else :data-source="filteredList" :loading="loading">
         <template #renderItem="{ item }">
           <a-list-item>
             <a-list-item-meta>
               <template #title>
-                <a @click="goToDoc(item)">{{ item.docName }}</a>
+                <a @click="goToDetail(item)">
+                  <span v-if="item.targetType === 2" style="color: #52c41a; margin-right: 6px">📝</span>
+                  <span v-else style="margin-right: 6px">📄</span>
+                  {{ item.name }}
+                </a>
               </template>
               <template #description>
-                所属电子书：{{ item.ebookName || '未知' }} | 收藏时间：{{ item.createTime?.slice(0, 10) }}
+                <template v-if="item.targetType === 2">
+                  笔记 | 收藏时间：{{ item.createTime?.slice(0, 10) }}
+                </template>
+                <template v-else>
+                  所属电子书：{{ item.ebookName || '未知' }} | 收藏时间：{{ item.createTime?.slice(0, 10) }}
+                </template>
               </template>
             </a-list-item-meta>
             <template #actions>
@@ -36,7 +52,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { favoriteApi } from '../../api'
@@ -50,6 +66,12 @@ export default defineComponent({
     const page = ref(1)
     const pageSize = ref(10)
     const loading = ref(true)
+    const filterType = ref<number | string>('all')
+
+    const filteredList = computed(() => {
+      if (filterType.value === 'all') return list.value
+      return list.value.filter((item: any) => item.targetType === filterType.value)
+    })
 
     const loadList = async () => {
       loading.value = true
@@ -64,13 +86,24 @@ export default defineComponent({
       }
     }
 
-    const goToDoc = (item: any) => {
-      router.push(`/ebook/${item.ebookId || ''}`)
+    const goToDetail = (item: any) => {
+      if (item.targetType === 2) {
+        // 笔记
+        router.push(`/note/edit/${item.docId}`)
+      } else {
+        // 文档
+        router.push(`/ebook/${item.ebookId || ''}`)
+      }
     }
 
     const handleRemove = async (item: any) => {
       try {
-        const res: any = await favoriteApi.toggle(item.docId)
+        let res: any
+        if (item.targetType === 2) {
+          res = await favoriteApi.noteToggle(item.docId)
+        } else {
+          res = await favoriteApi.toggle(item.docId)
+        }
         if (!res.content?.favorited) {
           message.success('已取消收藏')
           loadList()
@@ -82,7 +115,7 @@ export default defineComponent({
 
     onMounted(loadList)
 
-    return { list, total, page, pageSize, loading, loadList, goToDoc, handleRemove }
+    return { list, total, page, pageSize, loading, filterType, filteredList, loadList, goToDetail, handleRemove }
   }
 })
 </script>

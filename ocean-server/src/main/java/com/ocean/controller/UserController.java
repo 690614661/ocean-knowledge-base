@@ -3,6 +3,7 @@ package com.ocean.controller;
 import com.ocean.common.CommonResp;
 import com.ocean.common.PageResp;
 import com.ocean.domain.User;
+import com.ocean.domain.dto.BatchDeleteReq;
 import com.ocean.domain.dto.ChangePasswordReq;
 import com.ocean.domain.dto.ResetPasswordReq;
 import com.ocean.domain.dto.UserLoginReq;
@@ -78,6 +79,21 @@ public class UserController {
     public CommonResp<?> delete(@PathVariable Long id) {
         userService.delete(id);
         return CommonResp.ok("删除成功");
+    }
+
+    @ApiOperation("批量删除用户")
+    @PostMapping("/delete/batch")
+    public CommonResp<?> deleteBatch(@Validated @RequestBody BatchDeleteReq req, HttpServletRequest request) {
+        String token = request.getHeader("token");
+        Long currentUserId = JwtUtil.getUserIdFromToken(token);
+        // 校验不能删除自己
+        for (Long id : req.getIds()) {
+            if (id.equals(currentUserId)) {
+                return CommonResp.fail("不能删除当前登录用户");
+            }
+        }
+        userService.deleteBatch(req.getIds());
+        return CommonResp.ok("批量删除成功");
     }
 
     @ApiOperation("重置密码")
