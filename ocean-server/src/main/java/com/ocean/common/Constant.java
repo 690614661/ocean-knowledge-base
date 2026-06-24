@@ -13,6 +13,10 @@ public class Constant {
     public static final String TODAY_VIEW_COUNT_PREFIX = "stat:today:viewCount:";
     public static final String TODAY_VOTE_COUNT_PREFIX = "stat:today:voteCount:";
 
+    // 在线用户
+    public static final String ONLINE_USER_PREFIX = "online:user:";
+    public static final long ONLINE_USER_TTL_MINUTES = 30;
+
     public static final String ROLE_ADMIN = "admin";
 
     // 阅读历史

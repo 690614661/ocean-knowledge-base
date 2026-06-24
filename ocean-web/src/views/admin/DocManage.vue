@@ -210,6 +210,7 @@ export default defineComponent({
 .header-actions {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .add-btn {

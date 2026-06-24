@@ -36,7 +36,9 @@ export const userApi = {
   changePassword: (data: any) => request.post('/api/user/change-password', data),
   history: (params: any) => request.get('/api/user/history', { params }),
   sendCode: (email: string) => request.post(`/api/user/send-code?email=${email}`),
-  register: (data: any) => request.post('/api/user/register', data)
+  register: (data: any) => request.post('/api/user/register', data),
+  loginLog: (params: any) => request.get('/api/user/login-log', { params }),
+  online: () => request.get('/api/user/online')
 }
 
 export const snapshotApi = {

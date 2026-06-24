@@ -3,6 +3,7 @@ package com.ocean.controller;
 import com.ocean.common.CommonResp;
 import com.ocean.common.PageResp;
 import com.ocean.domain.User;
+import com.ocean.domain.UserLoginLog;
 import com.ocean.domain.dto.BatchDeleteReq;
 import com.ocean.domain.dto.ChangePasswordReq;
 import com.ocean.domain.dto.ResetPasswordReq;
@@ -20,6 +21,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
 import java.util.Map;
 
 @Api(tags = "用户管理")
@@ -137,5 +139,21 @@ public class UserController {
         String token = request.getHeader("token");
         Long userId = JwtUtil.getUserIdFromToken(token);
         return CommonResp.ok(userService.getHistory(userId, page, size));
+    }
+
+    @ApiOperation("登录日志（管理员）")
+    @GetMapping("/login-log")
+    public CommonResp<PageResp<UserLoginLog>> loginLog(@RequestParam(defaultValue = "1") int page,
+                                                       @RequestParam(defaultValue = "20") int size) {
+        return CommonResp.ok(userService.getLoginLogs(page, size));
+    }
+
+    @ApiOperation("当前在线用户列表（管理员）")
+    @GetMapping("/online")
+    public CommonResp<Map<String, Object>> online() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("count", userService.getOnlineCount());
+        result.put("users", userService.getOnlineUsers());
+        return CommonResp.ok(result);
     }
 }

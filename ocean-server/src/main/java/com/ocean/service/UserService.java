@@ -10,11 +10,14 @@ import com.ocean.common.CommonResp;
 import com.ocean.common.PageResp;
 import com.ocean.domain.Doc;
 import com.ocean.domain.User;
+import com.ocean.domain.UserLoginLog;
 import com.ocean.domain.dto.*;
+import com.ocean.mapper.UserLoginLogMapper;
 import com.ocean.mapper.UserMapper;
 import com.ocean.util.JwtUtil;
 import com.ocean.util.Md5Util;
 import com.ocean.util.BcryptUtil;
+import com.ocean.util.RequestUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -37,6 +40,9 @@ public class UserService extends ServiceImpl<UserMapper, User> {
 
     @Autowired
     private DocService docService;
+
+    @Autowired
+    private UserLoginLogMapper userLoginLogMapper;
 
     // ==================== 登录/退出 ====================
 
@@ -75,6 +81,33 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         // 存入 Redis
         redisTemplate.opsForValue().set(Constant.TOKEN_REDIS_PREFIX + user.getId(), token, 24, TimeUnit.HOURS);
 
+        // 记录登录日志
+        try {
+            UserLoginLog logEntry = new UserLoginLog();
+            logEntry.setUserId(user.getId());
+            logEntry.setLoginName(user.getLoginName());
+            logEntry.setUserName(user.getName());
+            logEntry.setIp(RequestUtil.getClientIp());
+            userLoginLogMapper.insert(logEntry);
+        } catch (Exception e) {
+            log.error("记录登录日志失败", e);
+        }
+
+        // 标记在线状态（Redis，30分钟超时）
+        try {
+            String onlineKey = Constant.ONLINE_USER_PREFIX + user.getId();
+            Map<String, Object> onlineInfo = new HashMap<>();
+            onlineInfo.put("userId", user.getId());
+            onlineInfo.put("loginName", user.getLoginName());
+            onlineInfo.put("name", user.getName());
+            onlineInfo.put("role", user.getRole());
+            onlineInfo.put("lastAccess", System.currentTimeMillis());
+            redisTemplate.opsForValue().set(onlineKey, onlineInfo,
+                    Constant.ONLINE_USER_TTL_MINUTES, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.error("标记在线状态失败", e);
+        }
+
         // 返回登录信息
         Map<String, Object> loginInfo = new HashMap<>();
         loginInfo.put("token", token);
@@ -89,6 +122,12 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     public CommonResp<Object> logout(String token) {
         Long userId = JwtUtil.getUserIdFromToken(token);
         redisTemplate.delete(Constant.TOKEN_REDIS_PREFIX + userId);
+        // 清除在线状态
+        try {
+            redisTemplate.delete(Constant.ONLINE_USER_PREFIX + userId);
+        } catch (Exception e) {
+            log.error("清除在线状态失败", e);
+        }
         return CommonResp.ok("退出成功");
     }
 
@@ -327,5 +366,59 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         }
 
         return new PageResp<>(total, result);
+    }
+
+    // ==================== 登录日志查询（管理员） ====================
+
+    public PageResp<UserLoginLog> getLoginLogs(int page, int size) {
+        IPage<UserLoginLog> logPage = userLoginLogMapper.selectPage(
+                new Page<>(page, size),
+                new LambdaQueryWrapper<UserLoginLog>()
+                        .orderByDesc(UserLoginLog::getLoginTime));
+        return new PageResp<>(logPage.getTotal(), logPage.getRecords());
+    }
+
+    // ==================== 在线用户查询 ====================
+
+    /**
+     * 查询当前在线用户列表（Redis中所有 online:user:* 前缀的key）
+     */
+    public List<Map<String, Object>> getOnlineUsers() {
+        List<Map<String, Object>> onlineUsers = new ArrayList<>();
+        try {
+            Set<String> keys = redisTemplate.keys(Constant.ONLINE_USER_PREFIX + "*");
+            if (keys != null) {
+                for (String key : keys) {
+                    Object obj = redisTemplate.opsForValue().get(key);
+                    if (obj instanceof Map<?, ?>) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> info = (Map<String, Object>) obj;
+                        onlineUsers.add(info);
+                    }
+                }
+            }
+            // 按最后访问时间倒序
+            onlineUsers.sort((a, b) -> {
+                Long aTime = (Long) a.getOrDefault("lastAccess", 0L);
+                Long bTime = (Long) b.getOrDefault("lastAccess", 0L);
+                return bTime.compareTo(aTime);
+            });
+        } catch (Exception e) {
+            log.error("查询在线用户失败", e);
+        }
+        return onlineUsers;
+    }
+
+    /**
+     * 获取当前在线人数
+     */
+    public long getOnlineCount() {
+        try {
+            Set<String> keys = redisTemplate.keys(Constant.ONLINE_USER_PREFIX + "*");
+            return keys != null ? keys.size() : 0;
+        } catch (Exception e) {
+            log.error("查询在线人数失败", e);
+            return 0;
+        }
     }
 }

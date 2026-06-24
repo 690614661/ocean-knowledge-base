@@ -71,6 +71,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/user/save",
                         "/api/user/delete/**",
                         "/api/user/reset-password",
+                        "/api/user/login-log",
+                        "/api/user/online",
                         "/api/file/**"
                 );
     }

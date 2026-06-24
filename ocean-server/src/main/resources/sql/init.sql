@@ -178,6 +178,19 @@ CREATE TABLE IF NOT EXISTS `favorite` (
 -- doc 表新增收藏数字段
 ALTER TABLE `doc` ADD COLUMN `favorite_count` INT NOT NULL DEFAULT 0 COMMENT '收藏数' AFTER `vote_count`;
 
+-- 用户登录日志表
+CREATE TABLE IF NOT EXISTS `user_login_log` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `login_name` VARCHAR(50) NOT NULL COMMENT '登录名',
+    `user_name` VARCHAR(50) NOT NULL COMMENT '用户昵称',
+    `ip` VARCHAR(50) DEFAULT NULL COMMENT '登录IP',
+    `login_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_login_time` (`login_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户登录日志表';
+
 -- 初始化管理员账号（密码: admin123，盐值: ocean_knowledge_salt_2026）
 -- MD5(admin123 + ocean_knowledge_salt_2026) = 需要程序计算
 INSERT INTO `user` (`id`, `login_name`, `name`, `password`, `role`) VALUES

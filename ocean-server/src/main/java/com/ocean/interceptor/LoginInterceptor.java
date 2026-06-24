@@ -10,6 +10,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -53,7 +55,31 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
 
         // 刷新 Token 过期时间
-        redisTemplate.expire(redisKey, 24, java.util.concurrent.TimeUnit.HOURS);
+        redisTemplate.expire(redisKey, 24, TimeUnit.HOURS);
+
+        // 刷新在线状态（用户每发一次请求，记录活跃时间）
+        try {
+            String onlineKey = Constant.ONLINE_USER_PREFIX + userId;
+            Object onlineObj = redisTemplate.opsForValue().get(onlineKey);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> onlineInfo;
+            if (onlineObj instanceof Map<?, ?>) {
+                onlineInfo = (Map<String, Object>) onlineObj;
+            } else {
+                // 首次：从 Token 解析用户信息创建在线记录
+                onlineInfo = new java.util.HashMap<>();
+                onlineInfo.put("userId", userId);
+                onlineInfo.put("loginName", JwtUtil.getLoginNameFromToken(token));
+                onlineInfo.put("name", JwtUtil.getNameFromToken(token));
+                onlineInfo.put("role", JwtUtil.getRoleFromToken(token));
+            }
+            onlineInfo.put("lastAccess", System.currentTimeMillis());
+            redisTemplate.opsForValue().set(onlineKey, onlineInfo,
+                    Constant.ONLINE_USER_TTL_MINUTES, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.warn("刷新在线状态失败: userId={}", userId, e);
+        }
+
         return true;
     }
 }
