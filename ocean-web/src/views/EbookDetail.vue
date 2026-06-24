@@ -92,7 +92,7 @@
             <div class="comments-list" v-if="comments.length > 0">
               <div v-for="comment in comments" :key="comment.id" class="comment-item">
                 <div class="comment-header">
-                  <a-avatar :size="28" class="comment-avatar" v-if="comment.userAvatar" :src="comment.userAvatar" />
+                  <a-avatar :size="28" class="comment-avatar" v-if="comment.userAvatar" :src="avatarUrl(comment.userAvatar)" />
                   <a-avatar :size="28" class="comment-avatar" v-else>{{ comment.userName?.charAt(0) }}</a-avatar>
                   <span class="comment-user">{{ comment.userName }}</span>
                   <span class="comment-time">{{ comment.createTime?.slice(0, 16) }}</span>
@@ -109,7 +109,7 @@
                 <div v-if="comment.children && comment.children.length > 0" class="comment-replies">
                   <div v-for="child in comment.children" :key="child.id" class="comment-item reply-item">
                     <div class="comment-header">
-                      <a-avatar :size="24" class="comment-avatar" v-if="child.userAvatar" :src="child.userAvatar" />
+                      <a-avatar :size="24" class="comment-avatar" v-if="child.userAvatar" :src="avatarUrl(child.userAvatar)" />
                       <a-avatar :size="24" class="comment-avatar" v-else>{{ child.userName?.charAt(0) }}</a-avatar>
                       <span class="comment-user">{{ child.userName }}</span>
                       <span v-if="child.replyToUserName" class="reply-to">回复 @{{ child.replyToUserName }}</span>
@@ -162,6 +162,9 @@ export default defineComponent({
     const comments = ref<any[]>([])
     const newComment = ref('')
     const commentLoading = ref(false)
+
+    // 头像加时间戳防缓存
+    const avatarUrl = (url: string) => url ? url + (url.includes('?') ? '&' : '?') + 't=' + Date.now() : ''
     const replyTo = ref<any>(null)
 
     const stripTreeProps = (tree: any[]): any[] => {
@@ -326,7 +329,7 @@ export default defineComponent({
     })
 
     return { docTree, currentDoc, selectedDocId, user, voted, favorited, favLoading,
-      comments, newComment, commentLoading, replyTo,
+      comments, newComment, commentLoading, replyTo, avatarUrl,
       onDocSelect, handleVote, handleFavorite, setReplyTo, cancelReply, submitComment, deleteComment }
   }
 })
