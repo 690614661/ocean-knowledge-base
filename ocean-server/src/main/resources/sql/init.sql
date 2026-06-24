@@ -208,6 +208,22 @@ CREATE TABLE IF NOT EXISTS `doc_comment` (
     KEY `idx_parent_id` (`parent_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档评论表';
 
+-- 用户通知表
+CREATE TABLE IF NOT EXISTS `notification` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增ID',
+    `from_user_id` BIGINT DEFAULT NULL COMMENT '发送方（系统通知为NULL）',
+    `to_user_id` BIGINT NOT NULL COMMENT '接收方',
+    `type` VARCHAR(20) NOT NULL COMMENT '通知类型：system/vote/comment/reply',
+    `title` VARCHAR(200) NOT NULL COMMENT '通知标题',
+    `content` TEXT DEFAULT NULL COMMENT '通知内容',
+    `related_id` BIGINT DEFAULT NULL COMMENT '关联业务ID',
+    `is_read` TINYINT NOT NULL DEFAULT 0 COMMENT '0未读 1已读',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_to_user` (`to_user_id`),
+    KEY `idx_unread` (`to_user_id`, `is_read`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户通知表';
+
 -- 初始化管理员账号（密码: admin123，盐值: ocean_knowledge_salt_2026）
 -- MD5(admin123 + ocean_knowledge_salt_2026) = 需要程序计算
 INSERT INTO `user` (`id`, `login_name`, `name`, `password`, `role`) VALUES

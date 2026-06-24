@@ -115,6 +115,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         loginInfo.put("loginName", user.getLoginName());
         loginInfo.put("name", user.getName());
         loginInfo.put("role", user.getRole());
+        loginInfo.put("avatar", user.getAvatar());
 
         return CommonResp.ok("登录成功", loginInfo);
     }
@@ -213,6 +214,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         loginInfo.put("loginName", user.getLoginName());
         loginInfo.put("name", user.getName());
         loginInfo.put("role", user.getRole());
+        loginInfo.put("avatar", user.getAvatar());
 
         return CommonResp.ok("注册成功", loginInfo);
     }

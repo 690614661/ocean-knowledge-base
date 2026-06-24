@@ -7,6 +7,7 @@ import com.ocean.domain.dto.BatchDeleteReq;
 import com.ocean.domain.dto.DocSaveReq;
 import com.ocean.interceptor.RateLimit;
 import com.ocean.service.DocService;
+import com.ocean.service.NotificationService;
 import com.ocean.util.JwtUtil;
 import com.ocean.util.RequestUtil;
 import io.swagger.annotations.Api;
@@ -48,7 +49,6 @@ public class DocController {
     @ApiOperation("文档详情（阅读）")
     @GetMapping("/{id}")
     public CommonResp<Doc> detail(@PathVariable Long id, HttpServletRequest request) {
-        // 尝试获取登录用户（阅读历史用，非必须）
         Long userId = null;
         String token = request.getHeader("token");
         if (token != null && JwtUtil.validateToken(token)) {
@@ -86,7 +86,6 @@ public class DocController {
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String redisKey = Constant.VOTE_REDIS_PREFIX + id + ":" + ip + ":" + today;
 
-        // Redis 防重
         Boolean setSuccess = redisTemplate.opsForValue().setIfAbsent(redisKey, "1", 24, TimeUnit.HOURS);
         if (setSuccess == null || !setSuccess) {
             return CommonResp.fail("今日已点赞");
@@ -94,13 +93,24 @@ public class DocController {
 
         docService.vote(id, ip);
 
-        // 发送MQ消息，触发WebSocket通知
-        if (rocketMQTemplate != null) {
-            try {
-                rocketMQTemplate.convertAndSend("VOTE_TOPIC", "文档 " + id + " 被点赞");
-            } catch (Exception e) {
-                log.warn("MQ消息发送失败", e);
+        // 发送通知给文档作者
+        try {
+            Doc doc = docService.getById(id);
+            if (doc != null) {
+                Long authorId = null; // 文档没有作者字段，通过文档ID查询
+                String token = request.getHeader("token");
+                if (token != null && JwtUtil.validateToken(token)) {
+                    Long voterId = JwtUtil.getUserIdFromToken(token);
+                    String voterName = JwtUtil.getNameFromToken(token);
+                    // 通知：暂时通过 MQ 方式兼容
+                    if (rocketMQTemplate != null) {
+                        rocketMQTemplate.convertAndSend("VOTE_TOPIC",
+                                "用户 " + voterName + " 赞了文档《" + doc.getName() + "》");
+                    }
+                }
             }
+        } catch (Exception e) {
+            log.warn("发送点赞通知失败", e);
         }
 
         return CommonResp.ok("点赞成功");

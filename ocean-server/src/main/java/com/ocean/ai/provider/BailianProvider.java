@@ -25,13 +25,12 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.function.Consumer;
 
-/**
- * 阿里云百炼（DashScope）AI 供应商实现
- * 支持通义千问（Qwen）系列模型
- * API 文档：https://help.aliyun.com/zh/model-studio/
- */
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "ai.provider", havingValue = "bailian")
@@ -55,6 +54,11 @@ public class BailianProvider implements AiProvider {
     @Value("${ai.bailian.timeout:60}")
     private Integer timeout;
 
+    @Value("${ocean.file.local.upload-path:./upload/}")
+    private String localUploadPath;
+
+    private static final String VL_MODEL = "qwen-vl-plus";
+
     private RestTemplate restTemplate;
 
     @PostConstruct
@@ -72,16 +76,16 @@ public class BailianProvider implements AiProvider {
         long startTime = System.currentTimeMillis();
         Exception lastException = null;
 
+        boolean hasImage = request.getImageUrl() != null && !request.getImageUrl().isEmpty();
+        String model = hasImage ? VL_MODEL : (request.getModel() != null ? request.getModel() : defaultModel);
+
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
-                // 构建请求体
                 JSONObject body = new JSONObject();
-                body.put("model", request.getModel() != null ? request.getModel() : defaultModel);
+                body.put("model", model);
 
-                // 构建 messages
                 JSONArray messages = new JSONArray();
-
-                if (request.getSystemPrompt() != null) {
+                if (request.getSystemPrompt() != null && !hasImage) {
                     JSONObject sysMsg = new JSONObject();
                     sysMsg.put("role", "system");
                     sysMsg.put("content", request.getSystemPrompt());
@@ -92,33 +96,41 @@ public class BailianProvider implements AiProvider {
                     for (ChatMessage msg : request.getMessages()) {
                         JSONObject msgObj = new JSONObject();
                         msgObj.put("role", msg.getRole());
-                        msgObj.put("content", msg.getContent());
+
+                        if (hasImage && "user".equals(msg.getRole())) {
+                            JSONArray contentArray = new JSONArray();
+                            JSONObject textPart = new JSONObject();
+                            textPart.put("text", msg.getContent());
+                            contentArray.add(textPart);
+                            JSONObject imagePart = new JSONObject();
+                            imagePart.put("image", toBase64Image(request.getImageUrl()));
+                            contentArray.add(imagePart);
+                            msgObj.put("content", contentArray);
+                        } else {
+                            msgObj.put("content", msg.getContent());
+                        }
                         messages.add(msgObj);
                     }
                 }
 
-                // 百炼 API 的 input 结构
                 JSONObject input = new JSONObject();
                 input.put("messages", messages);
                 body.put("input", input);
 
-                // 参数
                 JSONObject parameters = new JSONObject();
                 parameters.put("result_format", "message");
                 parameters.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : maxTokens);
                 parameters.put("temperature", request.getTemperature() != null ? request.getTemperature() : temperature);
                 body.put("parameters", parameters);
 
-                // 请求头
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 headers.setBearerAuth(apiKey);
 
                 HttpEntity<String> entity = new HttpEntity<>(body.toJSONString(), headers);
 
-                // 调用百炼 API
                 ResponseEntity<String> response = restTemplate.exchange(
-                        baseUrl + "/api/v1/services/aigc/text-generation/generation",
+                        baseUrl + (hasImage ? "/api/v1/services/aigc/multimodal-generation/generation" : "/api/v1/services/aigc/text-generation/generation"),
                         HttpMethod.POST,
                         entity,
                         String.class
@@ -135,13 +147,27 @@ public class BailianProvider implements AiProvider {
                 JSONObject result = JSON.parseObject(responseBody);
                 JSONObject output = result.getJSONObject("output");
                 JSONArray choices = output.getJSONArray("choices");
-                String content = choices.getJSONObject(0).getJSONObject("message").getString("content");
+                Object contentObj = choices.getJSONObject(0).getJSONObject("message").get("content");
+                // 多模态API返回的content可能是JSON数组，如 [{"text":"..."}]
+                String content;
+                if (contentObj instanceof JSONArray) {
+                    JSONArray parts = (JSONArray) contentObj;
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < parts.size(); i++) {
+                        JSONObject part = parts.getJSONObject(i);
+                        if (part.containsKey("text")) {
+                            sb.append(part.getString("text"));
+                        }
+                    }
+                    content = sb.toString();
+                } else {
+                    content = (String) contentObj;
+                }
 
                 JSONObject usage = result.getJSONObject("usage");
 
                 AiResponse aiResponse = new AiResponse();
                 aiResponse.setContent(content);
-                // 百炼返回 input_tokens / output_tokens
                 aiResponse.setPromptTokens(usage.getInteger("input_tokens"));
                 aiResponse.setCompletionTokens(usage.getInteger("output_tokens"));
                 aiResponse.setTotalTokens(usage.getInteger("total_tokens"));
@@ -168,11 +194,14 @@ public class BailianProvider implements AiProvider {
                            Consumer<String> onUsage, Runnable onComplete,
                            Consumer<Throwable> onError) {
         try {
+            boolean hasImage = request.getImageUrl() != null && !request.getImageUrl().isEmpty();
+            String model = hasImage ? VL_MODEL : (request.getModel() != null ? request.getModel() : defaultModel);
+
             JSONObject body = new JSONObject();
-            body.put("model", request.getModel() != null ? request.getModel() : defaultModel);
+            body.put("model", model);
 
             JSONArray messages = new JSONArray();
-            if (request.getSystemPrompt() != null) {
+            if (request.getSystemPrompt() != null && !hasImage) {
                 JSONObject sysMsg = new JSONObject();
                 sysMsg.put("role", "system");
                 sysMsg.put("content", request.getSystemPrompt());
@@ -182,7 +211,18 @@ public class BailianProvider implements AiProvider {
                 for (ChatMessage msg : request.getMessages()) {
                     JSONObject msgObj = new JSONObject();
                     msgObj.put("role", msg.getRole());
-                    msgObj.put("content", msg.getContent());
+                    if (hasImage && "user".equals(msg.getRole())) {
+                        JSONArray contentArray = new JSONArray();
+                        JSONObject textPart = new JSONObject();
+                        textPart.put("text", msg.getContent());
+                        contentArray.add(textPart);
+                        JSONObject imagePart = new JSONObject();
+                        imagePart.put("image", toBase64Image(request.getImageUrl()));
+                        contentArray.add(imagePart);
+                        msgObj.put("content", contentArray);
+                    } else {
+                        msgObj.put("content", msg.getContent());
+                    }
                     messages.add(msgObj);
                 }
             }
@@ -198,7 +238,7 @@ public class BailianProvider implements AiProvider {
             parameters.put("incremental_output", true);
             body.put("parameters", parameters);
 
-            URL url = new URL(baseUrl + "/api/v1/services/aigc/text-generation/generation");
+            URL url = new URL(baseUrl + (hasImage ? "/api/v1/services/aigc/multimodal-generation/generation" : "/api/v1/services/aigc/text-generation/generation"));
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
             connection.setRequestProperty("Content-Type", "application/json");
@@ -220,9 +260,7 @@ public class BailianProvider implements AiProvider {
                         new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
                     StringBuilder errorBody = new StringBuilder();
                     String line;
-                    while ((line = errorReader.readLine()) != null) {
-                        errorBody.append(line);
-                    }
+                    while ((line = errorReader.readLine()) != null) { errorBody.append(line); }
                     log.error("百炼SSE调用失败: status={}, body={}", statusCode, errorBody);
                 }
                 onError.accept(new RuntimeException("AI服务暂时不可用"));
@@ -230,25 +268,19 @@ public class BailianProvider implements AiProvider {
             }
 
             StringBuilder fullContent = new StringBuilder();
-
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (line.isEmpty()) continue;
-                    // 跳过 SSE 注释行 (:HTTP_STATUS/200) 和 id/event 行
                     if (line.startsWith(":") || line.startsWith("event:") || line.startsWith("id:")) continue;
-
                     if (line.startsWith("data:")) {
                         String data = line.substring(5).trim();
                         if (data.isEmpty()) continue;
-
                         try {
                             JSONObject chunk = JSON.parseObject(data);
                             JSONObject output = chunk.getJSONObject("output");
                             if (output == null) continue;
-
-                            // Bailian 格式: output.choices[0].message.content
                             JSONArray choices = output.getJSONArray("choices");
                             if (choices != null && !choices.isEmpty()) {
                                 JSONObject choice = choices.getJSONObject(0);
@@ -266,14 +298,12 @@ public class BailianProvider implements AiProvider {
                                 if ("stop".equals(finishReason)) break;
                             }
                         } catch (Exception e) {
-                            log.warn("解析百炼SSE失败: data={}", data, e);
+                            log.warn("解析百炼SSE失败", e);
                         }
                     }
                 }
             }
-
             onComplete.run();
-
         } catch (Exception e) {
             log.error("百炼SSE流式调用失败", e);
             onError.accept(e);
@@ -281,12 +311,44 @@ public class BailianProvider implements AiProvider {
     }
 
     @Override
-    public String getName() {
-        return "bailian";
-    }
+    public String getName() { return "bailian"; }
 
     @Override
-    public String getModelName() {
-        return defaultModel;
+    public String getModelName() { return defaultModel; }
+
+    private String toBase64Image(String imageUrl) {
+        if (imageUrl == null || imageUrl.startsWith("data:")) return imageUrl;
+        try {
+            byte[] imageBytes;
+            if (imageUrl.startsWith("/")) {
+                // 本地相对路径（如 /files/editor/uuid.jpg），从文件系统读取
+                String relativePath = imageUrl.startsWith("/files/") ? imageUrl.substring("/files/".length()) : imageUrl.substring(1);
+                Path filePath = Paths.get(localUploadPath, relativePath).normalize();
+                imageBytes = Files.readAllBytes(filePath);
+            } else {
+                // 远程 URL，通过 HTTP 下载
+                java.net.URL url = new java.net.URL(imageUrl);
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                try (java.io.InputStream is = url.openStream()) {
+                    byte[] buf = new byte[4096];
+                    int n;
+                    while ((n = is.read(buf)) > 0) baos.write(buf, 0, n);
+                }
+                imageBytes = baos.toByteArray();
+            }
+            String base64 = Base64.getEncoder().encodeToString(imageBytes);
+            String ext = imageUrl.contains(".") ? imageUrl.substring(imageUrl.lastIndexOf(".") + 1).toLowerCase() : "jpg";
+            String mime;
+            switch (ext) {
+                case "png": mime = "image/png"; break;
+                case "gif": mime = "image/gif"; break;
+                case "webp": mime = "image/webp"; break;
+                default: mime = "image/jpeg";
+            }
+            return "data:" + mime + ";base64," + base64;
+        } catch (Exception e) {
+            log.warn("图片下载失败，使用原始URL", e);
+            return imageUrl;
+        }
     }
 }

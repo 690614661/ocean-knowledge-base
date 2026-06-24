@@ -62,7 +62,7 @@
               <span v-if="msg.role === 'user'">👤</span>
               <span v-else class="ai-avatar">🤖</span>
             </div>
-            <div class="message-content" v-if="msg.role === 'user'">{{ msg.content }}</div>
+            <div class="message-content user-content" v-if="msg.role === 'user'" v-html="renderMarkdown(msg.content)"></div>
             <div class="message-content ai-content" v-else v-html="renderMarkdown(msg.content)"></div>
           </div>
 
@@ -83,6 +83,13 @@
         </div>
 
         <div class="chat-input-bar">
+          <a-upload :customRequest="handleImageUpload" :show-upload-list="false" accept="image/*" :disabled="loading || showTyping">
+            <a-button class="image-btn" :disabled="loading || showTyping" size="large" :loading="imageUploading">📷</a-button>
+          </a-upload>
+          <div class="image-preview" v-if="currentImageUrl">
+            <img :src="currentImageUrl" />
+            <a-button size="small" type="link" danger @click="currentImageUrl = ''">✕</a-button>
+          </div>
           <a-input
             v-model:value="inputMessage"
             placeholder="输入你的问题..."
@@ -116,7 +123,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { aiApi } from '../api'
+import { aiApi, fileApi } from '../api'
 import { message } from 'ant-design-vue'
 import { marked } from 'marked'
 import anime from 'animejs/lib/anime.es.js'
@@ -132,6 +139,8 @@ export default defineComponent({
     const showTyping = ref(false)
     const typingText = ref('')
     const messageListRef = ref<HTMLElement>()
+    const currentImageUrl = ref('')
+    const imageUploading = ref(false)
 
     const suggestions = [
       '鲸鱼为什么是哺乳动物？',
@@ -238,20 +247,37 @@ export default defineComponent({
       loadConversations()
     }
 
+    const handleImageUpload = async (options: any) => {
+      imageUploading.value = true
+      const formData = new FormData()
+      formData.append('file', options.file)
+      try {
+        const res: any = await fileApi.upload(formData, 'editor')
+        currentImageUrl.value = res.content
+        options.onSuccess && options.onSuccess(res)
+      } catch {
+        options.onError && options.onError(new Error('上传失败'))
+      } finally {
+        imageUploading.value = false
+      }
+    }
+
     const sendMessage = async () => {
-      if (!inputMessage.value.trim() || loading.value) return
-      const msg = inputMessage.value
+      if ((!inputMessage.value.trim() && !currentImageUrl.value) || loading.value) return
+      const msg = inputMessage.value || (currentImageUrl.value ? '请识别这张图片' : '')
+      const imgUrl = currentImageUrl.value
+      const userContent = imgUrl ? msg + '\n![图片](' + imgUrl + ')' : msg
       inputMessage.value = ''
-      messages.value.push({ id: Date.now().toString(), role: 'user', content: msg })
+      currentImageUrl.value = ''
+      messages.value.push({ id: Date.now().toString(), role: 'user', content: userContent })
       await scrollToBottom()
       loading.value = true
 
       try {
         // 使用同步 API 获取完整回复
-        const res: any = await aiApi.chat({
-          conversationId: currentId.value || undefined,
-          message: msg
-        })
+        const params: any = { conversationId: currentId.value || undefined, message: msg }
+        if (imgUrl) params.imageUrl = imgUrl
+        const res: any = await aiApi.chat(params)
         const convId = res.content?.conversationId || ''
         const reply = res.content?.content || ''
         currentId.value = convId
@@ -329,7 +355,7 @@ export default defineComponent({
       conversations, currentId, messages, inputMessage, loading,
       showTyping, typingText, messageListRef,
       suggestions, renderMarkdown, selectConversation, newConversation,
-      handleDelete, sendMessage, quickAsk, stopTyping
+      handleDelete, sendMessage, quickAsk, stopTyping, handleImageUpload, currentImageUrl, imageUploading
     }
   }
 })
@@ -639,6 +665,41 @@ export default defineComponent({
   border-radius: 12px;
 }
 
+.image-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  height: 40px;
+  width: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid #e8ecf0;
+  background: white;
+  color: #666;
+  flex-shrink: 0;
+}
+.image-btn:hover {
+  color: #1677ff !important;
+  border-color: #1677ff !important;
+}
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+.image-preview img {
+  height: 32px;
+  width: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
 .send-btn {
   border-radius: 12px;
   height: 40px;
@@ -653,5 +714,22 @@ export default defineComponent({
   height: 40px;
   padding: 0 20px;
   font-weight: 600;
+}
+/* 用户消息中的图片 - 小缩略图 */
+.user-content :deep(img) {
+  max-width: 100px;
+  max-height: 80px;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  object-fit: cover;
+  margin-top: 4px;
+  display: block;
+}
+
+/* AI回复中的图片 */
+.ai-content :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
 }
 </style>

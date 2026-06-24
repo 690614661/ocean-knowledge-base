@@ -1,10 +1,7 @@
 <template>
   <div id="app">
-    <!-- 登录页独立渲染，不受布局影响 -->
     <router-view v-if="isLoginPage" />
-
     <a-layout v-else style="min-height: 100vh">
-      <!-- 导航栏 -->
       <a-layout-header class="app-header">
         <div class="header-inner">
           <router-link to="/" class="logo">
@@ -32,6 +29,44 @@
               <span class="school-text">GDOU</span>
             </div>
             <template v-if="user.token">
+              <!-- 通知铃铛 -->
+              <a-badge :count="unreadCount" :overflow-count="99" class="notification-badge">
+                <a-button class="bell-btn" shape="circle" @click="showNotificationDrawer">
+                  <bell-outlined />
+                </a-button>
+              </a-badge>
+              <!-- 通知抽屉 -->
+              <a-drawer
+                title="🔔 消息通知"
+                placement="right"
+                :open="notifDrawerOpen"
+                @close="notifDrawerOpen = false"
+                width="360"
+              >
+                <div class="notif-header-actions">
+                  <a-button size="small" @click="markAllRead" v-if="unreadCount > 0">全部已读</a-button>
+                </div>
+                <a-list :data-source="notifList" :loading="notifLoading">
+                  <template #renderItem="{ item }">
+                    <a-list-item class="notif-item" :class="{ 'notif-unread': !item.isRead }">
+                      <a-list-item-meta>
+                        <template #title>
+                          <span v-html="item.title"></span>
+                        </template>
+                        <template #description>
+                          <span class="notif-time">{{ item.createTime?.slice(0, 16) }}</span>
+                        </template>
+                      </a-list-item-meta>
+                      <template #actions>
+                        <a-button v-if="!item.isRead" type="link" size="small" @click="markRead(item.id)">标已读</a-button>
+                      </template>
+                    </a-list-item>
+                  </template>
+                  <template v-if="notifList.length === 0">
+                    <a-empty description="暂无通知" />
+                  </template>
+                </a-list>
+              </a-drawer>
               <a-dropdown>
                 <div class="user-info" style="cursor: pointer">
                   <a-avatar :size="30" class="user-avatar" v-if="user.avatar" :src="user.avatar" />
@@ -45,7 +80,7 @@
                       <user-outlined /> 个人中心
                     </a-menu-item>
                     <a-menu-divider />
-                    <a-menu-item @click="logout">
+                    <a-menu-item @click="showLogoutConfirm">
                       <logout-outlined /> 退出登录
                     </a-menu-item>
                   </a-menu>
@@ -83,17 +118,20 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed } from 'vue'
+import { defineComponent, computed, ref, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
-import { HomeOutlined, ReadOutlined, RobotOutlined, SettingOutlined, DownOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons-vue'
+import { notificationApi } from './api'
+import wsClient from './utils/WebSocketClient'
+import { Modal } from 'ant-design-vue'
+import { HomeOutlined, ReadOutlined, RobotOutlined, SettingOutlined, DownOutlined, UserOutlined, LogoutOutlined, BellOutlined } from '@ant-design/icons-vue'
 
 export default defineComponent({
   name: 'App',
   components: {
     HomeOutlined, ReadOutlined, RobotOutlined, SettingOutlined,
-    DownOutlined, UserOutlined, LogoutOutlined
+    DownOutlined, UserOutlined, LogoutOutlined, BellOutlined
   },
   setup() {
     const store = useStore()
@@ -103,23 +141,98 @@ export default defineComponent({
     const isLoginPage = computed(() => route.path === '/login')
     const currentPath = computed(() => route.path)
 
+    // 通知
+    const unreadCount = ref(0)
+    const notifDrawerOpen = ref(false)
+    const notifList = ref<any[]>([])
+    const notifLoading = ref(false)
+
+    const loadUnreadCount = async () => {
+      try {
+        const res: any = await notificationApi.unreadCount()
+        unreadCount.value = res.content?.count || 0
+      } catch {}
+    }
+
+    const loadNotifList = async () => {
+      notifLoading.value = true
+      try {
+        const res: any = await notificationApi.list({ page: 1, size: 20 })
+        notifList.value = res.content?.list || []
+      } catch {}
+      notifLoading.value = false
+    }
+
+    const showNotificationDrawer = () => {
+      notifDrawerOpen.value = true
+      loadNotifList()
+    }
+
+    const markRead = async (id: number) => {
+      await notificationApi.markRead(id)
+      loadNotifList()
+      loadUnreadCount()
+    }
+
+    const markAllRead = async () => {
+      await notificationApi.markAllRead()
+      loadNotifList()
+      loadUnreadCount()
+    }
+
+    // 连接WebSocket
+    const connectWs = () => {
+      const u = store.state.user
+      if (!u.token) return
+      wsClient.connect(u.token)
+      wsClient.on('unread_count', (data: any) => {
+        unreadCount.value = data?.count || 0
+      })
+      wsClient.on('notification', (data: any) => {
+        if (notifDrawerOpen.value) loadNotifList()
+      })
+    }
+
+    onMounted(() => {
+      if (user.value.token) {
+        loadUnreadCount()
+        connectWs()
+      }
+    })
+
+    onUnmounted(() => {
+      wsClient.disconnect()
+    })
+
     const toLogin = () => router.push('/login')
+
+    const showLogoutConfirm = () => {
+      Modal.confirm({
+        title: '确认退出登录？',
+        content: '退出后需要重新登录',
+        okText: '确认退出',
+        cancelText: '取消',
+        onOk: () => logout()
+      })
+    }
 
     const logout = async () => {
       try {
         await axios.get('/api/user/logout', {
           headers: { token: store.state.user.token }
         })
-      } catch {
-        // ignore
-      } finally {
+      } catch {}
+      finally {
+        wsClient.disconnect()
         store.commit('setUser', {})
         sessionStorage.removeItem('user')
         router.push('/')
       }
     }
 
-    return { user, logout, isLoginPage, currentPath, toLogin }
+    return { user, logout, showLogoutConfirm, isLoginPage, currentPath, toLogin,
+      unreadCount, notifDrawerOpen, notifList, notifLoading,
+      showNotificationDrawer, markRead, markAllRead }
   }
 })
 </script>
@@ -155,9 +268,7 @@ export default defineComponent({
   flex-shrink: 0;
 }
 
-.logo-icon {
-  font-size: 22px;
-}
+.logo-icon { font-size: 22px; }
 
 .logo-text {
   font-size: 16px;
@@ -192,16 +303,8 @@ export default defineComponent({
   gap: 4px;
 }
 
-.nav-item:hover {
-  color: #fff;
-  border-bottom-color: #1677ff;
-}
-
-.nav-item.active {
-  color: #fff;
-  border-bottom-color: #1677ff;
-  font-weight: 600;
-}
+.nav-item:hover { color: #fff; border-bottom-color: #1677ff; }
+.nav-item.active { color: #fff; border-bottom-color: #1677ff; font-weight: 600; }
 
 .header-right {
   display: flex;
@@ -217,7 +320,6 @@ export default defineComponent({
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1px;
-  cursor: default;
 }
 
 .school-text {
@@ -227,23 +329,28 @@ export default defineComponent({
   background-clip: text;
 }
 
-.user-info {
+.notification-badge { line-height: 1; }
+
+.bell-btn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.75);
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
 }
+.bell-btn:hover { color: #fff !important; border-color: rgba(255,255,255,0.4) !important; }
 
-.user-avatar {
-  background: linear-gradient(135deg, #1677ff, #36cfc9);
-  color: #fff;
-  font-weight: 600;
-  font-size: 12px;
-}
+.notif-header-actions { text-align: right; margin-bottom: 12px; }
+.notif-item { padding: 12px 0 !important; }
+.notif-unread { background: #f0f5ff; border-radius: 8px; padding: 12px 8px !important; }
+.notif-time { font-size: 12px; color: #bbb; }
 
-.user-name {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-}
+.user-info { display: flex; align-items: center; gap: 6px; }
+.user-avatar { background: linear-gradient(135deg, #1677ff, #36cfc9); color: #fff; font-weight: 600; font-size: 12px; }
+.user-name { color: rgba(255, 255, 255, 0.85); font-size: 13px; }
 
 .login-btn {
   border-radius: 6px;
@@ -256,77 +363,12 @@ export default defineComponent({
   font-size: 13px;
 }
 
-.logout-btn {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.75);
-  border-radius: 6px;
-  height: 32px;
-  font-size: 12px;
-}
+.app-content { min-height: calc(100vh - 134px); background: linear-gradient(180deg, #e8f4fd 0%, #f0f9ff 50%, #f5faff 100%); }
 
-.logout-btn:hover {
-  border-color: #ff4d4f;
-  color: #ff4d4f;
-}
-
-.theme-toggle-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.85);
-  border-radius: 6px;
-  height: 32px;
-  width: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  padding: 0;
-}
-
-.theme-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.4) !important;
-  color: #fff !important;
-}
-
-.app-content {
-  min-height: calc(100vh - 134px);
-  background: linear-gradient(180deg, #e8f4fd 0%, #f0f9ff 50%, #f5faff 100%);
-}
-
-.app-footer {
-  padding: 0;
-  background: #0a1628;
-  position: relative;
-}
-
-.footer-wave {
-  height: 6px;
-  background: linear-gradient(90deg, #1677ff, #36cfc9, #1677ff);
-  opacity: 0.6;
-}
-
-.footer-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-  text-align: center;
-}
-
-.footer-links {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
-.footer-divider {
-  margin: 0 10px;
-  color: rgba(255, 255, 255, 0.2);
-}
-
-.footer-copyright {
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 12px;
-}
+.app-footer { padding: 0; background: #0a1628; position: relative; }
+.footer-wave { height: 6px; background: linear-gradient(90deg, #1677ff, #36cfc9, #1677ff); opacity: 0.6; }
+.footer-content { max-width: 1200px; margin: 0 auto; padding: 20px; text-align: center; }
+.footer-links { color: rgba(255, 255, 255, 0.5); font-size: 13px; margin-bottom: 8px; }
+.footer-divider { margin: 0 10px; color: rgba(255, 255, 255, 0.2); }
+.footer-copyright { color: rgba(255, 255, 255, 0.3); font-size: 12px; }
 </style>

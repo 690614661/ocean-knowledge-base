@@ -101,3 +101,10 @@ export const commentApi = {
   save: (data: any) => request.post('/api/comment/save', data),
   delete: (id: number | string) => request.delete(`/api/comment/delete/${id}`)
 }
+
+export const notificationApi = {
+  unreadCount: () => request.get('/api/notification/unread/count'),
+  list: (params: any) => request.get('/api/notification/list', { params }),
+  markRead: (id: number | string) => request.post(`/api/notification/read/${id}`),
+  markAllRead: () => request.post('/api/notification/read/all')
+}
