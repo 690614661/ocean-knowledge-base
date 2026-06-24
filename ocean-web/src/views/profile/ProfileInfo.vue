@@ -14,6 +14,10 @@
           <span class="info-value">{{ profile.name }}</span>
         </div>
         <div class="info-item">
+          <span class="info-label">邮箱</span>
+          <span class="info-value">{{ profile.email || '未绑定' }}</span>
+        </div>
+        <div class="info-item">
           <span class="info-label">角色</span>
           <span class="info-value">
             <a-tag :color="profile.role === 'admin' ? 'gold' : 'blue'">

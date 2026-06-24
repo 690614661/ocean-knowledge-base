@@ -121,12 +121,16 @@
 
         <!-- Header -->
         <div class="login-header">
-          <h1>欢迎回来</h1>
-          <p>海洋生物知识库</p>
+          <div class="mode-tabs">
+            <span :class="['mode-tab', { active: mode === 'login' }]" @click="mode = 'login'">登录</span>
+            <span :class="['mode-tab', { active: mode === 'register' }]" @click="mode = 'register'">注册</span>
+          </div>
+          <p v-if="mode === 'login'">海洋生物知识库</p>
+          <p v-else>注册新账号，探索海洋奥秘</p>
         </div>
 
         <!-- Login Form -->
-        <form class="login-form" @submit.prevent="handleSubmit">
+        <form v-if="mode === 'login'" class="login-form" @submit.prevent="handleLogin">
           <div class="form-group">
             <label for="loginName">用户名</label>
             <a-input
@@ -173,6 +177,91 @@
           </a-button>
         </form>
 
+        <!-- Register Form -->
+        <form v-else class="login-form" @submit.prevent="handleRegister">
+          <div class="form-group">
+            <label for="regLoginName">用户名</label>
+            <a-input
+              id="regLoginName"
+              v-model:value="regForm.loginName"
+              placeholder="请输入用户名"
+              size="large"
+              :disabled="isLoading"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="regName">昵称</label>
+            <a-input
+              id="regName"
+              v-model:value="regForm.name"
+              placeholder="请输入昵称"
+              size="large"
+              :disabled="isLoading"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="regEmail">邮箱</label>
+            <div style="display:flex;gap:8px">
+              <a-input
+                id="regEmail"
+                v-model:value="regForm.email"
+                placeholder="请输入邮箱"
+                size="large"
+                :disabled="isLoading"
+                style="flex:1"
+              />
+              <a-button
+                :loading="sendingCode"
+                :disabled="sendingCode || !regForm.email"
+                @click="sendCode"
+                size="large"
+              >{{ sendingCode ? '发送中...' : countdown > 0 ? countdown + 's' : '获取验证码' }}</a-button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="regCode">验证码</label>
+            <a-input
+              id="regCode"
+              v-model:value="regForm.emailCode"
+              placeholder="请输入6位验证码"
+              size="large"
+              :disabled="isLoading"
+              maxlength="6"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="regPassword">密码</label>
+            <a-input-password
+              id="regPassword"
+              v-model:value="regForm.password"
+              placeholder="6-32位，包含数字和字母"
+              size="large"
+              :disabled="isLoading"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="regConfirmPwd">确认密码</label>
+            <a-input-password
+              id="regConfirmPwd"
+              v-model:value="regForm.confirmPassword"
+              placeholder="再次输入密码"
+              size="large"
+              :disabled="isLoading"
+            />
+          </div>
+
+          <div v-if="error" class="error-message">{{ error }}</div>
+
+          <a-button type="primary" html-type="submit" size="large" block :loading="isLoading" class="login-btn">
+            {{ isLoading ? '注册中...' : '注 册' }}
+          </a-button>
+        </form>
+
         <!-- Footer -->
         <div class="login-footer">
           默认账号: admin / admin123
@@ -187,16 +276,29 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { userApi } from '../../api'
+import store from '../../store'
 import EyeBall from './EyeBall.vue'
 import Pupil from './Pupil.vue'
 
 const router = useRouter()
 
 // ====== State ======
+const mode = ref<'login' | 'register'>('login')
 const loginName = ref('')
 const password = ref('')
+const regForm = ref({
+  loginName: '',
+  name: '',
+  email: '',
+  emailCode: '',
+  password: '',
+  confirmPassword: ''
+})
 const error = ref('')
 const isLoading = ref(false)
+const sendingCode = ref(false)
+const countdown = ref(0)
+let countdownTimer: ReturnType<typeof setInterval> | null = null
 const rememberMe = ref(false)
 
 const mouseX = ref(0)
@@ -274,6 +376,7 @@ watch(isTyping, (typing) => {
 
 onUnmounted(() => {
   if (lookTimer) clearTimeout(lookTimer)
+  if (countdownTimer) clearInterval(countdownTimer)
 })
 
 // ====== Purple peeking when password visible ======
@@ -402,25 +505,61 @@ const yellowMouthPos = computed(() => ({
 const yellowLookX = computed(() => false ? -5 : undefined)
 const yellowLookY = computed(() => false ? -4 : undefined)
 
-// ====== Submit ======
-const handleSubmit = async () => {
+// ====== Login ======
+const handleLogin = async () => {
   error.value = ''
   isLoading.value = true
-
   try {
-    const res: any = await userApi.login({
-      loginName: loginName.value,
-      password: password.value
-    })
+    const res: any = await userApi.login({ loginName: loginName.value, password: password.value })
     const user = res.content
     sessionStorage.setItem('user', JSON.stringify(user))
+    store.commit('setUser', user)
     message.success('登录成功')
-    router.push('/')
+    window.location.href = '/'
   } catch (e: any) {
     error.value = e?.message || '登录失败，请重试'
   } finally {
     isLoading.value = false
   }
+}
+
+// ====== Register ======
+const sendCode = async () => {
+  if (!regForm.value.email) { message.warning('请先输入邮箱'); return }
+  if (countdown.value > 0) return
+  sendingCode.value = true
+  error.value = ''
+  try {
+    await userApi.sendCode(regForm.value.email)
+    message.success('验证码已发送！邮件未配置时请查看后端日志')
+    countdown.value = 60
+    if (countdownTimer) clearInterval(countdownTimer)
+    countdownTimer = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) {
+        if (countdownTimer) clearInterval(countdownTimer)
+      }
+    }, 1000)
+  } catch (e: any) {
+    error.value = e?.message || '发送失败'
+  } finally { sendingCode.value = false }
+}
+
+const handleRegister = async () => {
+  error.value = ''
+  const f = regForm.value
+  if (!f.loginName || !f.name || !f.email || !f.emailCode || !f.password) { error.value = '请填写所有字段'; return }
+  if (f.password.length < 6) { error.value = '密码至少6位'; return }
+  if (f.password !== f.confirmPassword) { error.value = '两次密码输入不一致'; return }
+  isLoading.value = true
+  try {
+    const res: any = await userApi.register({ loginName: f.loginName, name: f.name, email: f.email, emailCode: f.emailCode, password: f.password })
+    message.success('注册成功！请登录')
+    mode.value = 'login'
+    regForm.value = { loginName: '', name: '', email: '', emailCode: '', password: '', confirmPassword: '' }
+  } catch (e: any) {
+    error.value = e?.message || '注册失败'
+  } finally { isLoading.value = false }
 }
 </script>
 
@@ -699,6 +838,33 @@ const handleSubmit = async () => {
   background: rgba(239, 68, 68, 0.08);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 8px;
+}
+
+.mode-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 3px;
+}
+.mode-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 15px;
+  color: #999;
+  transition: all 0.3s;
+  user-select: none;
+}
+.mode-tab.active {
+  background: #fff;
+  color: #6366f1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
 
 .login-btn {

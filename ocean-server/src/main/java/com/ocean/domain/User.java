@@ -22,6 +22,18 @@ public class User implements Serializable {
 
     private String role;
 
+    /** 邮箱 */
+    private String email;
+
+    /** 手机号 */
+    private String phone;
+
+    /** 头像URL */
+    private String avatar;
+
+    /** 状态：1正常 0禁用 */
+    private Integer status;
+
     @JsonIgnore
     private String password;
 

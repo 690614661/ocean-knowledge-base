@@ -7,6 +7,7 @@ import com.ocean.domain.dto.ChangePasswordReq;
 import com.ocean.domain.dto.ResetPasswordReq;
 import com.ocean.domain.dto.UserLoginReq;
 import com.ocean.domain.dto.UserProfileUpdateReq;
+import com.ocean.domain.dto.UserRegisterReq;
 import com.ocean.domain.dto.UserSaveReq;
 import com.ocean.interceptor.RateLimit;
 import com.ocean.service.UserService;
@@ -40,6 +41,21 @@ public class UserController {
     public CommonResp<Object> logout(HttpServletRequest request) {
         String token = request.getHeader("token");
         return userService.logout(token);
+    }
+
+    @ApiOperation("用户注册")
+    @RateLimit(permitsPerMinute = 3, permitsPerDay = 10)
+    @PostMapping("/register")
+    public CommonResp<Object> register(@Validated @RequestBody UserRegisterReq req) {
+        return userService.register(req);
+    }
+
+    @ApiOperation("发送邮箱验证码")
+    @RateLimit(permitsPerMinute = 5)
+    @PostMapping("/send-code")
+    public CommonResp<?> sendCode(@RequestParam String email) {
+        userService.sendEmailCode(email);
+        return CommonResp.ok("验证码已发送");
     }
 
     @ApiOperation("用户列表")

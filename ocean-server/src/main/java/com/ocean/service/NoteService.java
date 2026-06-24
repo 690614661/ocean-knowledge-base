@@ -10,15 +10,36 @@ import com.ocean.domain.Note;
 import com.ocean.domain.dto.NoteSaveReq;
 import com.ocean.mapper.NoteMapper;
 import com.ocean.util.XssFilterUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import javax.annotation.PostConstruct;
+import java.util.List;
+
+@Slf4j
 @Service
 public class NoteService extends ServiceImpl<NoteMapper, Note> {
 
     @Autowired
     private SearchService searchService;
+
+    /**
+     * 启动时将数据库中所有公开笔记批量同步到 ES 索引
+     */
+    @PostConstruct
+    public void initNoteIndex() {
+        try {
+            List<Note> publicNotes = this.list(
+                    new LambdaQueryWrapper<Note>().eq(Note::getIsPublic, 1));
+            if (!publicNotes.isEmpty()) {
+                searchService.syncNoteBatch(publicNotes);
+            }
+        } catch (Exception e) {
+            log.warn("启动时批量同步笔记索引失败（ES可能未就绪，后续自动重试）", e);
+        }
+    }
 
     public PageResp<Note> myList(int page, int size, Long userId) {
         IPage<Note> notePage = this.page(new Page<>(page, size),

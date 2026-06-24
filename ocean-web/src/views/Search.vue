@@ -5,7 +5,7 @@
       <div class="search-bar">
         <a-input-search
           v-model:value="keyword"
-          placeholder="输入关键词搜索文档..."
+          placeholder="输入关键词搜索文档和笔记..."
           enter-button="搜索"
           size="large"
           style="max-width: 600px"
@@ -13,7 +13,7 @@
         />
       </div>
       <div class="search-tips" v-if="!loading && keyword">
-        <span>关于 "<strong>{{ keyword }}</strong>" 的搜索结果，共 {{ results.length }} 条</span>
+        <span>关于 "<strong>{{ keyword }}</strong>" 的搜索结果，共 {{ totalCount }} 条</span>
       </div>
     </div>
 
@@ -24,11 +24,24 @@
         class="result-card"
         @click="goToDoc(item)"
       >
-        <div class="result-title" v-html="item.name"></div>
+        <div class="result-title" v-html="item.title || item.name"></div>
         <div class="result-snippet" v-html="item.content"></div>
         <div class="result-meta">
-          <span>📄 来自电子书</span>
+          <span v-if="item._index === 'note_index'" style="color:#52c41a">📝 来自笔记</span>
+          <span v-else>📄 来自电子书</span>
+          <span style="margin-left: 12px">· {{ item.viewCount || 0 }} 次阅读</span>
         </div>
+      </div>
+
+      <!-- 分页 -->
+      <div class="pagination-wrapper" v-if="totalCount > pageSize">
+        <a-pagination
+          v-model:current="currentPage"
+          :total="totalCount"
+          :page-size="pageSize"
+          :show-total="total => `共 ${total} 条`"
+          @change="onPageChange"
+        />
       </div>
     </div>
 
@@ -57,7 +70,10 @@ export default defineComponent({
     const router = useRouter()
     const keyword = ref('')
     const results = ref<any[]>([])
+    const totalCount = ref(0)
     const loading = ref(false)
+    const currentPage = ref(1)
+    const pageSize = ref(10)
 
     const animateResults = () => {
       const cards = document.querySelectorAll('.result-card')
@@ -99,8 +115,21 @@ export default defineComponent({
     const onSearch = async () => {
       if (!keyword.value) return
       loading.value = true
+      currentPage.value = 1
       try {
-        const res: any = await searchApi.search({ keyword: keyword.value })
+        const res: any = await searchApi.search({ keyword: keyword.value, page: 1, size: pageSize.value })
+        results.value = res.content?.list || []
+        totalCount.value = parseInt(res.content?.total) || 0
+      } finally {
+        loading.value = false
+      }
+    }
+
+    const onPageChange = async (page: number) => {
+      currentPage.value = page
+      loading.value = true
+      try {
+        const res: any = await searchApi.search({ keyword: keyword.value, page, size: pageSize.value })
         results.value = res.content?.list || []
       } finally {
         loading.value = false
@@ -108,7 +137,11 @@ export default defineComponent({
     }
 
     const goToDoc = (item: any) => {
-      router.push(`/ebook/${item.ebookId}`)
+      if (item._index === 'note_index') {
+        router.push(`/note/${item.id}`)
+      } else {
+        router.push(`/ebook/${item.ebookId}`)
+      }
     }
 
     onMounted(() => {
@@ -116,7 +149,7 @@ export default defineComponent({
       if (keyword.value) onSearch()
     })
 
-    return { keyword, results, loading, onSearch, goToDoc }
+    return { keyword, results, totalCount, loading, currentPage, pageSize, onSearch, onPageChange, goToDoc }
   }
 })
 </script>
@@ -228,5 +261,12 @@ export default defineComponent({
 .empty-hint {
   font-size: 13px;
   color: #ccc;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+  padding: 16px 0;
 }
 </style>

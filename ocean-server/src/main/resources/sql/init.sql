@@ -11,10 +11,16 @@ CREATE TABLE IF NOT EXISTS `user` (
     `name` VARCHAR(50) NOT NULL COMMENT '昵称',
     `password` VARCHAR(255) NOT NULL COMMENT '密码（MD5+盐值）',
     `role` VARCHAR(20) NOT NULL DEFAULT 'user' COMMENT '角色：admin/user',
+    `email` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
+    `phone` VARCHAR(20) DEFAULT NULL COMMENT '手机号',
+    `avatar` VARCHAR(500) DEFAULT NULL COMMENT '头像URL',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1正常 0禁用',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_login_name` (`login_name`)
+    UNIQUE KEY `uk_login_name` (`login_name`),
+    UNIQUE KEY `uk_email` (`email`),
+    KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 -- 分类表

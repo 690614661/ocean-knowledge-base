@@ -1,19 +1,23 @@
 package com.ocean.service;
 
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ocean.domain.Note;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +27,8 @@ import java.util.stream.Collectors;
  * 当前管理的索引：
  * - doc_index  : 文档（由 DocService 触发同步）
  * - note_index : 公开笔记（由 NoteService 触发同步）
+ * <p>
+ * 索引同步使用 OkHttp 发送请求，避免 RestTemplate 内部编码转换导致中文乱码。
  */
 @Slf4j
 @Service
@@ -33,6 +39,20 @@ public class SearchService {
 
     @Value("${spring.elasticsearch.uris:http://localhost:9200}")
     private String esUrl;
+
+    private final OkHttpClient okHttpClient;
+    private final ObjectMapper objectMapper;
+
+    private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
+
+    public SearchService() {
+        this.okHttpClient = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build();
+        this.objectMapper = new ObjectMapper();
+    }
 
     // ==================== 搜索结果封装 ====================
 
@@ -60,12 +80,6 @@ public class SearchService {
 
     /**
      * 全文检索，支持搜索文档和公开笔记
-     *
-     * @param keyword 搜索关键词
-     * @param page    页码（从1开始）
-     * @param size    每页条数
-     * @param filters 过滤条件
-     * @return 搜索结果
      */
     public SearchResult search(String keyword, int page, int size, SearchFilter filters) {
         String type = filters != null ? filters.getType() : "all";
@@ -83,9 +97,6 @@ public class SearchService {
         }
     }
 
-    /**
-     * 搜索单个索引
-     */
     private SearchResult searchSingleIndex(String indexName, String keyword, int page, int size,
                                            List<String> fields) {
         try {
@@ -94,7 +105,6 @@ public class SearchService {
                     esUrl + "/" + indexName + "/_search",
                     queryBody,
                     String.class);
-
             return parseResponse(esResponse, indexName);
         } catch (Exception e) {
             log.warn("搜索 {} 暂不可用: {}", indexName, e.getMessage());
@@ -102,29 +112,30 @@ public class SearchService {
         }
     }
 
-    /**
-     * 同时搜索文档 + 笔记，合并结果按相关性混排
-     */
     private SearchResult searchAll(String keyword, int page, int size) {
-        // 文档和笔记各搜一半，合并后截取
-        int halfSize = Math.max(size / 2, size);
-        SearchResult docResult = searchSingleIndex("doc_index", keyword, 1, halfSize,
+        // 各索引搜 size 条，合并后截取，保证两种类型都能出现
+        int fetchSize = Math.max(size, 1);
+        SearchResult docResult = searchSingleIndex("doc_index", keyword, 1, fetchSize,
                 Arrays.asList("name", "content"));
-        SearchResult noteResult = searchSingleIndex("note_index", keyword, 1, halfSize,
+        SearchResult noteResult = searchSingleIndex("note_index", keyword, 1, fetchSize,
                 Arrays.asList("title", "content"));
 
-        // 合并并标记来源
+        // 交叉合并，让文档和笔记交替出现，避免笔记被挤到后面
         List<Map<String, Object>> merged = new ArrayList<>();
-        for (Map<String, Object> doc : docResult.getList()) {
-            doc.put("_index", "doc_index");
-            merged.add(doc);
-        }
-        for (Map<String, Object> note : noteResult.getList()) {
-            note.put("_index", "note_index");
-            merged.add(note);
+        List<Map<String, Object>> docList = docResult.getList();
+        List<Map<String, Object>> noteList = noteResult.getList();
+        int maxLen = Math.max(docList.size(), noteList.size());
+        for (int i = 0; i < maxLen; i++) {
+            if (i < docList.size()) {
+                docList.get(i).put("_index", "doc_index");
+                merged.add(docList.get(i));
+            }
+            if (i < noteList.size()) {
+                noteList.get(i).put("_index", "note_index");
+                merged.add(noteList.get(i));
+            }
         }
 
-        // 按总分页截取
         int from = (page - 1) * size;
         List<Map<String, Object>> paged = merged.stream()
                 .skip(from)
@@ -137,14 +148,10 @@ public class SearchService {
 
     // ==================== ES 查询构建 ====================
 
-    /**
-     * 构建 ES 搜索请求体
-     */
     private Map<String, Object> buildQuery(String keyword, int page, int size,
                                            List<String> fields, boolean isNoteIndex) {
         Map<String, Object> queryBody = new HashMap<>();
 
-        // multi_match 查询
         Map<String, Object> query = new HashMap<>();
         Map<String, Object> multiMatch = new HashMap<>();
         multiMatch.put("query", keyword);
@@ -152,7 +159,6 @@ public class SearchService {
         query.put("multi_match", multiMatch);
         queryBody.put("query", query);
 
-        // 高亮设置
         Map<String, Object> highlight = new HashMap<>();
         Map<String, Object> highlightFields = new HashMap<>();
         for (String field : fields) {
@@ -164,7 +170,6 @@ public class SearchService {
         highlight.put("fields", highlightFields);
         queryBody.put("highlight", highlight);
 
-        // 分页
         queryBody.put("from", (page - 1) * size);
         queryBody.put("size", size);
 
@@ -173,9 +178,6 @@ public class SearchService {
 
     // ==================== ES 响应解析 ====================
 
-    /**
-     * 解析 ES 搜索响应
-     */
     @SuppressWarnings("unchecked")
     private SearchResult parseResponse(String esResponse, String indexName) {
         if (esResponse == null) {
@@ -200,7 +202,6 @@ public class SearchService {
                 Map<String, Object> doc = new HashMap<>(source);
                 doc.put("id", hit.get("_id"));
 
-                // 替换高亮内容
                 Map<String, Object> hlFields = (Map<String, Object>) hit.get("highlight");
                 if (hlFields != null) {
                     for (String field : new String[]{"name", "title", "content"}) {
@@ -220,30 +221,39 @@ public class SearchService {
         return new SearchResult(total, resultList);
     }
 
-    // ==================== 文档索引同步 ====================
+    // ==================== ES 索引同步（使用 OkHttp，UTF-8 编码可靠） ====================
 
     /**
-     * 同步文档到 ES 索引
+     * 同步文档/笔记数据到 ES 索引
+     * 使用 OkHttp 直发 UTF-8 JSON 字节，彻底避免编码问题
      */
-    public void syncDocIndex(Long docId, String name, String content, Long ebookId) {
+    private void putToEs(String url, Map<String, Object> body) {
         try {
-            Map<String, Object> docMap = new HashMap<>();
-            docMap.put("name", name);
-            docMap.put("content", content);
-            docMap.put("ebookId", ebookId);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(docMap, headers);
-            restTemplate.put(esUrl + "/doc_index/_doc/" + docId, entity);
+            byte[] jsonBytes = objectMapper.writeValueAsBytes(body);
+            Request request = new Request.Builder()
+                    .url(url)
+                    .put(RequestBody.create(jsonBytes, JSON_MEDIA_TYPE))
+                    .build();
+            okhttp3.Response response = okHttpClient.newCall(request).execute();
+            if (!response.isSuccessful()) {
+                log.warn("ES PUT 返回非成功状态: url={}, code={}", url, response.code());
+            }
+            response.close();
         } catch (Exception e) {
-            log.error("文档索引同步失败: docId={}", docId, e);
+            log.error("ES PUT 请求失败: url={}", url, e);
         }
     }
 
-    /**
-     * 从 ES 删除文档索引
-     */
+    // ==================== 文档索引同步 ====================
+
+    public void syncDocIndex(Long docId, String name, String content, Long ebookId) {
+        Map<String, Object> docMap = new HashMap<>();
+        docMap.put("name", name);
+        docMap.put("content", content);
+        docMap.put("ebookId", ebookId);
+        putToEs(esUrl + "/doc_index/_doc/" + docId, docMap);
+    }
+
     public void deleteDocIndex(Long docId) {
         try {
             restTemplate.delete(esUrl + "/doc_index/_doc/" + docId);
@@ -252,15 +262,51 @@ public class SearchService {
         }
     }
 
-    // ==================== 笔记索引同步 ====================
+    /**
+     * 批量同步文档到 ES（用于重建索引）
+     * @param docs 文档列表，每个元素需包含 id, name, content, ebookId 属性
+     */
+    public void syncDocBatch(List<Doc> docs) {
+        int success = 0;
+        for (Doc doc : docs) {
+            try {
+                String content = "";
+                // 如果有content字段
+                if (doc.getContent() != null) {
+                    content = doc.getContent();
+                }
+                syncDocIndex(doc.getId(), doc.getName(), content, doc.getEbookId());
+                success++;
+            } catch (Exception e) {
+                log.warn("批量同步文档失败: docId={}", doc.getId());
+            }
+        }
+        log.info("批量同步文档完成: 共{}条, 成功{}条", docs.size(), success);
+    }
 
     /**
-     * 同步笔记到 ES 索引（仅公开笔记可被搜索）
+     * 批量同步笔记到 ES（用于初始化或重建索引）
      */
+    public void syncNoteBatch(List<Note> notes) {
+        int success = 0;
+        for (Note note : notes) {
+            if (note.getIsPublic() == 1) {
+                try {
+                    syncNoteIndex(note.getId(), note.getTitle(), note.getContent(), note.getUserId(), true);
+                    success++;
+                } catch (Exception e) {
+                    log.warn("批量同步笔记失败: noteId={}", note.getId());
+                }
+            }
+        }
+        log.info("批量同步笔记完成: 共{}条, 成功{}条", notes.size(), success);
+    }
+
+    // ==================== 笔记索引同步 ====================
+
     public void syncNoteIndex(Long noteId, String title, String content, Long userId, boolean isPublic) {
         try {
             if (!isPublic) {
-                // 私有笔记：确保从 ES 中删除（防止改私有后残留）
                 deleteNoteIndex(noteId);
                 return;
             }
@@ -271,18 +317,12 @@ public class SearchService {
             noteMap.put("userId", userId);
             noteMap.put("isPublic", 1);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(noteMap, headers);
-            restTemplate.put(esUrl + "/note_index/_doc/" + noteId, entity);
+            putToEs(esUrl + "/note_index/_doc/" + noteId, noteMap);
         } catch (Exception e) {
             log.error("笔记索引同步失败: noteId={}", noteId, e);
         }
     }
 
-    /**
-     * 从 ES 删除笔记索引
-     */
     public void deleteNoteIndex(Long noteId) {
         try {
             restTemplate.delete(esUrl + "/note_index/_doc/" + noteId);
