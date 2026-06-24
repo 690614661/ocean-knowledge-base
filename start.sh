@@ -160,7 +160,13 @@ backend_start() {
         exit 1
     fi
 
-    # 启动（从用户环境变量读取 BAILIAN_API_KEY，已在 .bashrc 或系统环境中持久化）
+    # 加载 .env 文件（如果存在）
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        set -a; source "$PROJECT_ROOT/.env"; set +a
+        echo -e "${GREEN}  [已加载 .env 文件]${NC}"
+    fi
+
+    # 启动
     echo -e "${YELLOW}[2/2] 启动服务...${NC}"
     nohup java -jar target/ocean-server-1.0.0.jar > "$BACKEND_LOG" 2>&1 &
     local pid=$!

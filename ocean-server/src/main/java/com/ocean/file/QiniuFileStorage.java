@@ -39,6 +39,9 @@ public class QiniuFileStorage implements FileStorageStrategy {
     @Value("${ocean.file.qiniu.domain:}")
     private String domain;
 
+    @Value("${ocean.file.qiniu.region:}")
+    private String region;
+
     private UploadManager uploadManager;
     private Auth auth;
     private BucketManager bucketManager;
@@ -49,11 +52,21 @@ public class QiniuFileStorage implements FileStorageStrategy {
             log.warn("七牛云未配置 AccessKey/SecretKey，上传将在运行时失败");
             return;
         }
-        Configuration cfg = new Configuration(Region.autoRegion());
+        Region r;
+        if ("southchina".equalsIgnoreCase(region)) {
+            r = Region.region2(); // 华南(广州)
+        } else if ("northchina".equalsIgnoreCase(region)) {
+            r = Region.region1(); // 华北(北京)
+        } else if ("eastchina".equalsIgnoreCase(region)) {
+            r = Region.region0(); // 华东(上海)
+        } else {
+            r = Region.autoRegion();
+        }
+        Configuration cfg = new Configuration(r);
         uploadManager = new UploadManager(cfg);
         auth = Auth.create(accessKey, secretKey);
         bucketManager = new BucketManager(auth, cfg);
-        log.info("七牛云存储初始化完成, bucket={}, domain={}", bucket, domain);
+        log.info("七牛云存储初始化完成, bucket={}, domain={}, region={}", bucket, domain, region);
     }
 
     @Override

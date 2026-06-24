@@ -83,6 +83,7 @@ ocean:
       secret-key: ${QINIU_SECRET_KEY:}
       bucket: ${QINIU_BUCKET:ocean-knowledge}
       domain: ${QINIU_DOMAIN:}
+      region: ${QINIU_REGION:}
 
 cors:
   allowed-origins: http://localhost,http://localhost:80,http://localhost:3000

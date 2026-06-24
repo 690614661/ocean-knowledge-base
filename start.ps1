@@ -66,8 +66,17 @@ function Backend-Start {
         exit 1
     }
 
-    # 确保 AI API Key 环境变量传入子进程（已通过 setx 持久化）
-    $env:BAILIAN_API_KEY = [Environment]::GetEnvironmentVariable("BAILIAN_API_KEY", "User")
+    # 加载 .env 文件（如果存在）
+    $envFile = Join-Path $PSScriptRoot ".env"
+    if (Test-Path $envFile) {
+        Get-Content $envFile | ForEach-Object {
+            if ($_ -match "^\s*([^#=]+)=(.+)\s*$") {
+                Set-Item -Path "Env:$($matches[1])" -Value $matches[2] -ErrorAction SilentlyContinue
+            }
+        }
+        Write-Host "  [已加载 .env 文件]" -ForegroundColor Green
+    }
+
     $proc = Start-Process -FilePath $javaExe -ArgumentList "-jar `"$jarFile`"" -NoNewWindow -PassThru -RedirectStandardOutput $BackendLog
 
     # 等待启动
