@@ -73,9 +73,11 @@ public class ElasticsearchInitConfig implements ApplicationRunner {
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"properties\": {\n" +
-                "      \"name\":     { \"type\": \"text\" },\n" +
-                "      \"content\":  { \"type\": \"text\" },\n" +
-                "      \"ebookId\":  { \"type\": \"long\" }\n" +
+                "      \"name\":       { \"type\": \"text\" },\n" +
+                "      \"content\":    { \"type\": \"text\" },\n" +
+                "      \"ebookId\":    { \"type\": \"long\" },\n" +
+                "      \"createTime\": { \"type\": \"date\", \"format\": \"epoch_millis\" },\n" +
+                "      \"viewCount\":  { \"type\": \"integer\" }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -89,10 +91,12 @@ public class ElasticsearchInitConfig implements ApplicationRunner {
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"properties\": {\n" +
-                "      \"title\":     { \"type\": \"text\" },\n" +
-                "      \"content\":   { \"type\": \"text\" },\n" +
-                "      \"userId\":    { \"type\": \"long\" },\n" +
-                "      \"isPublic\":  { \"type\": \"byte\" }\n" +
+                "      \"title\":      { \"type\": \"text\" },\n" +
+                "      \"content\":    { \"type\": \"text\" },\n" +
+                "      \"userId\":     { \"type\": \"long\" },\n" +
+                "      \"isPublic\":   { \"type\": \"byte\" },\n" +
+                "      \"createTime\": { \"type\": \"date\", \"format\": \"epoch_millis\" },\n" +
+                "      \"viewCount\":  { \"type\": \"integer\" }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";

@@ -63,6 +63,65 @@
               <a-button type="link" @click="$router.push('/login')">登录</a-button>后即可点赞和收藏
             </div>
           </div>
+
+          <!-- 评论区 -->
+          <div class="doc-comments">
+            <h3 class="comments-title">💬 评论 ({{ comments.length }})</h3>
+
+            <!-- 评论输入框 -->
+            <div class="comment-input-area" v-if="user.token">
+              <a-textarea
+                v-model:value="newComment"
+                :rows="3"
+                placeholder="写下你的评论..."
+                class="comment-textarea"
+              />
+              <div class="comment-input-actions">
+                <span class="reply-hint" v-if="replyTo">回复 @{{ replyTo.userName }}：</span>
+                <a-button v-if="replyTo" size="small" @click="cancelReply">取消回复</a-button>
+                <a-button type="primary" size="small" class="comment-submit-btn" @click="submitComment" :loading="commentLoading">
+                  发表评论
+                </a-button>
+              </div>
+            </div>
+            <div class="comment-login-hint" v-else>
+              <a-button type="link" @click="$router.push('/login')">登录</a-button>后即可发表评论
+            </div>
+
+            <!-- 评论列表 -->
+            <div class="comments-list" v-if="comments.length > 0">
+              <div v-for="comment in comments" :key="comment.id" class="comment-item">
+                <div class="comment-header">
+                  <span class="comment-user">{{ comment.userName }}</span>
+                  <span class="comment-time">{{ comment.createTime?.slice(0, 16) }}</span>
+                  <a-button v-if="user.userId === comment.userId" type="link" danger size="small"
+                    class="comment-delete" @click="deleteComment(comment.id)">删除</a-button>
+                </div>
+                <div class="comment-body">{{ comment.content }}</div>
+                <div class="comment-actions">
+                  <a-button type="link" size="small" @click="setReplyTo(comment)" v-if="user.token">
+                    回复
+                  </a-button>
+                </div>
+                <!-- 子评论 -->
+                <div v-if="comment.children && comment.children.length > 0" class="comment-replies">
+                  <div v-for="child in comment.children" :key="child.id" class="comment-item reply-item">
+                    <div class="comment-header">
+                      <span class="comment-user">{{ child.userName }}</span>
+                      <span v-if="child.replyToUserName" class="reply-to">回复 @{{ child.replyToUserName }}</span>
+                      <span class="comment-time">{{ child.createTime?.slice(0, 16) }}</span>
+                      <a-button v-if="user.userId === child.userId" type="link" danger size="small"
+                        class="comment-delete" @click="deleteComment(child.id)">删除</a-button>
+                    </div>
+                    <div class="comment-body">{{ child.content }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="comments-empty">
+              <span>暂无评论，快来抢沙发吧~</span>
+            </div>
+          </div>
         </template>
         <div class="doc-empty" v-else>
           <div class="empty-icon">📚</div>
@@ -78,7 +137,7 @@ import { defineComponent, ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
-import { docApi, favoriteApi } from '../api'
+import { docApi, favoriteApi, commentApi } from '../api'
 import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
@@ -94,6 +153,12 @@ export default defineComponent({
     const voted = ref(false)
     const favorited = ref(false)
     const favLoading = ref(false)
+
+    // 评论
+    const comments = ref<any[]>([])
+    const newComment = ref('')
+    const commentLoading = ref(false)
+    const replyTo = ref<any>(null)
 
     const stripTreeProps = (tree: any[]): any[] => {
       return tree.map(node => {
@@ -159,9 +224,63 @@ export default defineComponent({
             favorited.value = favRes.content?.favorited || false
           } catch {}
         }
+        // 加载评论
+        loadComments(docId)
         nextTick(() => animateContentIn())
       } catch {
         message.error('文档加载失败')
+      }
+    }
+
+    // ===== 评论功能 =====
+
+    const loadComments = async (docId: number) => {
+      try {
+        const res: any = await commentApi.list(docId)
+        comments.value = res.content || []
+      } catch {}
+    }
+
+    const setReplyTo = (comment: any) => {
+      replyTo.value = { id: comment.id, userId: comment.userId, userName: comment.userName }
+    }
+
+    const cancelReply = () => {
+      replyTo.value = null
+    }
+
+    const submitComment = async () => {
+      if (!newComment.value.trim()) {
+        message.warning('请输入评论内容')
+        return
+      }
+      commentLoading.value = true
+      try {
+        await commentApi.save({
+          docId: currentDoc.value.id,
+          content: newComment.value,
+          parentId: replyTo.value?.id || null,
+          replyToUserId: replyTo.value?.userId || null,
+          replyToUserName: replyTo.value?.userName || null
+        })
+        message.success('评论成功')
+        newComment.value = ''
+        replyTo.value = null
+        loadComments(currentDoc.value.id)
+      } catch {
+        message.error('评论发表失败')
+      } finally {
+        commentLoading.value = false
+      }
+    }
+
+    const deleteComment = async (id: number) => {
+      try {
+        await commentApi.delete(id)
+        message.success('评论已删除')
+        loadComments(currentDoc.value.id)
+      } catch {
+        message.error('删除失败')
       }
     }
 
@@ -202,7 +321,9 @@ export default defineComponent({
       setTimeout(() => animateSidebarIn(), 500)
     })
 
-    return { docTree, currentDoc, selectedDocId, user, voted, favorited, favLoading, onDocSelect, handleVote, handleFavorite }
+    return { docTree, currentDoc, selectedDocId, user, voted, favorited, favLoading,
+      comments, newComment, commentLoading, replyTo,
+      onDocSelect, handleVote, handleFavorite, setReplyTo, cancelReply, submitComment, deleteComment }
   }
 })
 </script>
@@ -460,5 +581,127 @@ export default defineComponent({
   font-size: 64px;
   margin-bottom: 16px;
   opacity: 0.5;
+}
+
+/* 评论区样式 */
+.doc-comments {
+  margin-top: 20px;
+  background: white;
+  border-radius: 16px;
+  padding: 24px 32px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.comments-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0 0 20px;
+}
+
+.comment-input-area {
+  margin-bottom: 20px;
+}
+
+.comment-textarea {
+  border-radius: 12px;
+}
+
+.comment-input-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reply-hint {
+  font-size: 13px;
+  color: #1677ff;
+}
+
+.comment-submit-btn {
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1677ff, #4096ff);
+  border: none;
+  font-weight: 500;
+}
+
+.comment-login-hint {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-size: 14px;
+  border: 1px dashed #e8ecf0;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.comment-item {
+  padding: 16px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.comment-user {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.reply-to {
+  font-size: 12px;
+  color: #1677ff;
+}
+
+.comment-time {
+  font-size: 12px;
+  color: #bbb;
+}
+
+.comment-delete {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.comment-body {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+}
+
+.comment-actions {
+  margin-top: 4px;
+}
+
+.comment-replies {
+  margin-top: 12px;
+  margin-left: 24px;
+  padding-left: 16px;
+  border-left: 3px solid #e8ecf0;
+  background: #fafafa;
+  border-radius: 0 8px 8px 0;
+  padding: 8px 16px;
+}
+
+.reply-item {
+  padding: 8px 0;
+  border-bottom: none;
+}
+
+.comments-empty {
+  text-align: center;
+  padding: 32px;
+  color: #bbb;
 }
 </style>

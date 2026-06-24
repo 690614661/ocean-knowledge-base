@@ -12,9 +12,58 @@
           @search="onSearch"
         />
       </div>
-      <div class="search-tips" v-if="!loading && keyword">
-        <span>关于 "<strong>{{ keyword }}</strong>" 的搜索结果，共 {{ totalCount }} 条</span>
+    </div>
+
+    <!-- 过滤器 -->
+    <div class="filter-bar" v-if="loaded">
+      <div class="filter-row">
+        <div class="filter-item">
+          <span class="filter-label">类型</span>
+          <a-select v-model:value="filterType" style="width: 120px" @change="onFilterChange">
+            <a-select-option value="all">全部</a-select-option>
+            <a-select-option value="doc">📄 文档</a-select-option>
+            <a-select-option value="note">📝 笔记</a-select-option>
+          </a-select>
+        </div>
+        <div class="filter-item">
+          <span class="filter-label">分类</span>
+          <a-cascader
+            v-model:value="filterCategory"
+            :options="categoryOptions"
+            placeholder="全部"
+            style="width: 200px"
+            :field-names="{ label: 'name', value: 'id', children: 'children' }"
+            change-on-select
+            allow-clear
+            @change="onFilterChange"
+          />
+        </div>
+        <div class="filter-item">
+          <span class="filter-label">排序</span>
+          <a-select v-model:value="filterSortBy" style="width: 130px" @change="onFilterChange">
+            <a-select-option value="relevance">相关度</a-select-option>
+            <a-select-option value="time">最新</a-select-option>
+            <a-select-option value="hot">最热</a-select-option>
+          </a-select>
+        </div>
       </div>
+      <!-- 激活的过滤标签 -->
+      <div class="active-tags" v-if="activeTagCount > 0">
+        <a-tag closable v-if="filterType !== 'all'" @close="filterType = 'all'; onFilterChange()">
+          类型：{{ typeLabel }}
+        </a-tag>
+        <a-tag closable v-if="filterCategory && filterCategory.length > 0" @close="filterCategory = []; onFilterChange()">
+          分类已选
+        </a-tag>
+        <a-tag closable v-if="filterSortBy !== 'relevance'" @close="filterSortBy = 'relevance'; onFilterChange()">
+          排序：{{ sortByLabel }}
+        </a-tag>
+      </div>
+    </div>
+
+    <div class="search-tips" v-if="!loading && (keyword || activeTagCount > 0)">
+      <span v-if="keyword">关于 "<strong>{{ keyword }}</strong>" 的搜索结果，共 {{ totalCount }} 条</span>
+      <span v-else>共 {{ totalCount }} 条结果</span>
     </div>
 
     <div class="search-results" v-if="results.length > 0">
@@ -33,7 +82,6 @@
         </div>
       </div>
 
-      <!-- 分页 -->
       <div class="pagination-wrapper" v-if="totalCount > pageSize">
         <a-pagination
           v-model:current="currentPage"
@@ -45,22 +93,27 @@
       </div>
     </div>
 
-    <div v-else-if="!loading && keyword" class="empty-state">
+    <div v-else-if="!loading && (keyword || activeTagCount > 0)" class="empty-state">
       <div class="empty-icon">🐡</div>
       <p>没有找到相关结果</p>
-      <p class="empty-hint">试试其他关键词</p>
+      <p class="empty-hint">试试其他关键词或调整筛选条件</p>
     </div>
 
     <div v-else-if="loading" class="loading-state">
       <a-spin size="large" tip="搜索中..." />
     </div>
+
+    <div v-else class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <p>输入关键词开始搜索</p>
+    </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, nextTick, onMounted } from 'vue'
+import { defineComponent, ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { searchApi } from '../api'
+import { searchApi, categoryApi } from '../api'
 import anime from 'animejs/lib/anime.es.js'
 
 export default defineComponent({
@@ -74,6 +127,66 @@ export default defineComponent({
     const loading = ref(false)
     const currentPage = ref(1)
     const pageSize = ref(10)
+    const loaded = ref(false)
+
+    // 过滤器
+    const filterType = ref('all')
+    const filterCategory = ref<any[]>([])
+    const filterSortBy = ref('relevance')
+    const categories = ref<any[]>([])
+
+    const typeLabel = computed(() => {
+      const map: any = { all: '全部', doc: '文档', note: '笔记' }
+      return map[filterType.value] || '全部'
+    })
+    const sortByLabel = computed(() => {
+      const map: any = { relevance: '相关度', time: '最新', hot: '最热' }
+      return map[filterSortBy.value] || '相关度'
+    })
+    const activeTagCount = computed(() => {
+      let count = 0
+      if (filterType.value !== 'all') count++
+      if (filterCategory.value.length > 0) count++
+      if (filterSortBy.value !== 'relevance') count++
+      return count
+    })
+
+    const categoryOptions = computed(() => {
+      return categories.value.filter((c: any) => c.parent === 0).map((c1: any) => {
+        return {
+          ...c1,
+          children: categories.value.filter((c: any) => c.parent === c1.id)
+        }
+      })
+    })
+
+    const buildParams = () => {
+      const params: any = { page: currentPage.value, size: pageSize.value }
+      if (keyword.value) params.keyword = keyword.value
+      if (filterType.value !== 'all') params.type = filterType.value
+      if (filterSortBy.value !== 'relevance') params.sortBy = filterSortBy.value
+      if (filterCategory.value && filterCategory.value.length > 0) {
+        // cascader 返回 [一级ID] 或 [一级ID, 二级ID]
+        params.categoryId = filterCategory.value[filterCategory.value.length - 1]
+      }
+      return params
+    }
+
+    const doSearch = async () => {
+      if (!keyword.value && activeTagCount.value === 0) {
+        results.value = []
+        totalCount.value = 0
+        return
+      }
+      loading.value = true
+      try {
+        const res: any = await searchApi.search(buildParams())
+        results.value = res.content?.list || []
+        totalCount.value = parseInt(res.content?.total) || 0
+      } finally {
+        loading.value = false
+      }
+    }
 
     const animateResults = () => {
       const cards = document.querySelectorAll('.result-card')
@@ -112,28 +225,19 @@ export default defineComponent({
       }
     })
 
-    const onSearch = async () => {
-      if (!keyword.value) return
-      loading.value = true
+    const onSearch = () => {
       currentPage.value = 1
-      try {
-        const res: any = await searchApi.search({ keyword: keyword.value, page: 1, size: pageSize.value })
-        results.value = res.content?.list || []
-        totalCount.value = parseInt(res.content?.total) || 0
-      } finally {
-        loading.value = false
-      }
+      doSearch()
     }
 
-    const onPageChange = async (page: number) => {
+    const onFilterChange = () => {
+      currentPage.value = 1
+      doSearch()
+    }
+
+    const onPageChange = (page: number) => {
       currentPage.value = page
-      loading.value = true
-      try {
-        const res: any = await searchApi.search({ keyword: keyword.value, page, size: pageSize.value })
-        results.value = res.content?.list || []
-      } finally {
-        loading.value = false
-      }
+      doSearch()
     }
 
     const goToDoc = (item: any) => {
@@ -144,19 +248,30 @@ export default defineComponent({
       }
     }
 
-    onMounted(() => {
+    onMounted(async () => {
       keyword.value = (route.query.keyword as string) || ''
+      // 加载分类
+      try {
+        const res: any = await categoryApi.all()
+        categories.value = res.content || []
+      } catch {}
+      loaded.value = true
       if (keyword.value) onSearch()
     })
 
-    return { keyword, results, totalCount, loading, currentPage, pageSize, onSearch, onPageChange, goToDoc }
+    return {
+      keyword, results, totalCount, loading, currentPage, pageSize,
+      filterType, filterCategory, filterSortBy, loaded,
+      categories, categoryOptions, typeLabel, sortByLabel, activeTagCount,
+      onSearch, onFilterChange, onPageChange, goToDoc
+    }
   }
 })
 </script>
 
 <style scoped>
 .search-header {
-  padding: 32px 0;
+  padding: 32px 0 16px;
   text-align: center;
 }
 
@@ -184,9 +299,46 @@ export default defineComponent({
   font-weight: 600;
 }
 
+.filter-bar {
+  max-width: 800px;
+  margin: 0 auto 16px;
+  background: white;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.filter-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.active-tags {
+  margin-top: 10px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
 .search-tips {
+  text-align: center;
   color: #666;
   font-size: 14px;
+  margin-bottom: 20px;
 }
 
 .search-results {

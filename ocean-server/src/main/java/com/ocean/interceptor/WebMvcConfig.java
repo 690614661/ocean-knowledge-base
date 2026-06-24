@@ -48,6 +48,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/user/register",
                         "/api/user/send-code",
                         "/api/search",
+                        "/api/comment/list/**",
                         "/api/note/public",
                         "/api/note/*",
                         "/files/**",

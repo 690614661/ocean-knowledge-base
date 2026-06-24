@@ -17,7 +17,7 @@
     <div class="dashboard-tips">
       <a-alert
         message="管理提示"
-        description="从左侧菜单选择管理模块进行内容维护。新增用户后请及时告知其登录信息。"
+        description="从左侧菜单选择管理模块进行内容维护。"
         type="info"
         show-icon
       />

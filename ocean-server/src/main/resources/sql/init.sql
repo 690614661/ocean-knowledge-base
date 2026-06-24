@@ -191,6 +191,23 @@ CREATE TABLE IF NOT EXISTS `user_login_log` (
     KEY `idx_login_time` (`login_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户登录日志表';
 
+-- 文档评论表
+CREATE TABLE IF NOT EXISTS `doc_comment` (
+    `id` BIGINT NOT NULL COMMENT '评论ID（雪花算法）',
+    `doc_id` BIGINT NOT NULL COMMENT '文档ID',
+    `parent_id` BIGINT DEFAULT NULL COMMENT '父评论ID（回复时关联）',
+    `reply_to_user_id` BIGINT DEFAULT NULL COMMENT '被回复用户ID',
+    `reply_to_user_name` VARCHAR(50) DEFAULT NULL COMMENT '被回复用户昵称',
+    `user_id` BIGINT NOT NULL COMMENT '评论用户ID',
+    `user_name` VARCHAR(50) NOT NULL COMMENT '评论用户昵称',
+    `content` TEXT NOT NULL COMMENT '评论内容（XSS过滤）',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_doc_id` (`doc_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_parent_id` (`parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档评论表';
+
 -- 初始化管理员账号（密码: admin123，盐值: ocean_knowledge_salt_2026）
 -- MD5(admin123 + ocean_knowledge_salt_2026) = 需要程序计算
 INSERT INTO `user` (`id`, `login_name`, `name`, `password`, `role`) VALUES

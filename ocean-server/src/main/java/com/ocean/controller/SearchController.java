@@ -27,13 +27,20 @@ public class SearchController {
 
     @ApiOperation("全文检索")
     @GetMapping("")
-    public CommonResp<Map<String, Object>> search(@RequestParam String keyword,
+    public CommonResp<Map<String, Object>> search(@RequestParam(required = false) String keyword,
                                                   @RequestParam(defaultValue = "1") int page,
                                                   @RequestParam(defaultValue = "10") int size,
-                                                  @RequestParam(defaultValue = "all") String type) {
+                                                  @RequestParam(defaultValue = "all") String type,
+                                                  @RequestParam(required = false) Long categoryId,
+                                                  @RequestParam(required = false) Long ebookId,
+                                                  @RequestParam(defaultValue = "relevance") String sortBy) {
         SearchFilter filters = new SearchFilter();
         filters.setType(type);
+        filters.setCategoryId(categoryId);
+        filters.setEbookId(ebookId);
+        filters.setSortBy(sortBy);
 
+        keyword = (keyword == null || keyword.trim().isEmpty()) ? "" : keyword.trim();
         SearchResult result = searchService.search(keyword, page, size, filters);
 
         Map<String, Object> resultMap = new HashMap<>();

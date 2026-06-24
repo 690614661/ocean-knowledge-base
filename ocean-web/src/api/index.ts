@@ -92,3 +92,9 @@ export const favoriteApi = {
   noteCheck: (noteId: number | string) => request.get(`/api/favorite/note/check/${noteId}`),
   list: (params: any) => request.get('/api/favorite/list', { params })
 }
+
+export const commentApi = {
+  list: (docId: number | string) => request.get(`/api/comment/list/${docId}`),
+  save: (data: any) => request.post('/api/comment/save', data),
+  delete: (id: number | string) => request.delete(`/api/comment/delete/${id}`)
+}

@@ -1,9 +1,13 @@
 package com.ocean.service;
 
 import com.alibaba.fastjson.JSON;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ocean.domain.Doc;
+import com.ocean.domain.Ebook;
 import com.ocean.domain.Note;
+import com.ocean.mapper.DocMapper;
+import com.ocean.mapper.NoteMapper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,6 +42,15 @@ public class SearchService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private DocMapper docMapper;
+
+    @Autowired
+    private NoteMapper noteMapper;
+
+    @Autowired
+    private EbookService ebookService;
+
     @Value("${spring.elasticsearch.uris:http://localhost:9200}")
     private String esUrl;
 
@@ -69,18 +82,18 @@ public class SearchService {
     public static class SearchFilter {
         /** 搜索类型：all / doc / note */
         private String type = "all";
-        /** 分类ID（预留，后续支持按分类过滤） */
+        /** 分类ID，支持按分类过滤 */
         private Long categoryId;
-        /** 电子书ID（预留，后续支持按电子书过滤） */
+        /** 电子书ID，支持按电子书过滤 */
         private Long ebookId;
-        /** 排序方式：relevance / time / hot（预留） */
+        /** 排序方式：relevance / time / hot */
         private String sortBy = "relevance";
     }
 
     // ==================== 全文检索 ====================
 
     /**
-     * 全文检索，支持搜索文档和公开笔记
+     * 全文检索，支持搜索文档和公开笔记，支持过滤和排序
      */
     public SearchResult search(String keyword, int page, int size, SearchFilter filters) {
         String type = filters != null ? filters.getType() : "all";
@@ -88,20 +101,20 @@ public class SearchService {
         switch (type) {
             case "doc":
                 return searchSingleIndex("doc_index", keyword, page, size,
-                        Arrays.asList("name", "content"));
+                        Arrays.asList("name", "content"), filters);
             case "note":
                 return searchSingleIndex("note_index", keyword, page, size,
-                        Arrays.asList("title", "content"));
+                        Arrays.asList("title", "content"), filters);
             case "all":
             default:
-                return searchAll(keyword, page, size);
+                return searchAll(keyword, page, size, filters);
         }
     }
 
     private SearchResult searchSingleIndex(String indexName, String keyword, int page, int size,
-                                           List<String> fields) {
+                                           List<String> fields, SearchFilter filters) {
         try {
-            Map<String, Object> queryBody = buildQuery(keyword, page, size, fields, indexName.equals("note_index"));
+            Map<String, Object> queryBody = buildQuery(keyword, page, size, fields, indexName, filters);
             String esResponse = restTemplate.postForObject(
                     esUrl + "/" + indexName + "/_search",
                     queryBody,
@@ -113,15 +126,21 @@ public class SearchService {
         }
     }
 
-    private SearchResult searchAll(String keyword, int page, int size) {
-        // 各索引搜 size 条，合并后截取，保证两种类型都能出现
+    private SearchResult searchAll(String keyword, int page, int size, SearchFilter filters) {
         int fetchSize = Math.max(size, 1);
-        SearchResult docResult = searchSingleIndex("doc_index", keyword, 1, fetchSize,
-                Arrays.asList("name", "content"));
-        SearchResult noteResult = searchSingleIndex("note_index", keyword, 1, fetchSize,
-                Arrays.asList("title", "content"));
 
-        // 交叉合并，让文档和笔记交替出现，避免笔记被挤到后面
+        // 如果指定了 ebookId，只搜 doc_index
+        if (filters != null && filters.getEbookId() != null) {
+            return searchSingleIndex("doc_index", keyword, page, size,
+                    Arrays.asList("name", "content"), filters);
+        }
+
+        SearchResult docResult = searchSingleIndex("doc_index", keyword, 1, fetchSize,
+                Arrays.asList("name", "content"), filters);
+        SearchResult noteResult = searchSingleIndex("note_index", keyword, 1, fetchSize,
+                Arrays.asList("title", "content"), filters);
+
+        // 交叉合并，让文档和笔记交替出现
         List<Map<String, Object>> merged = new ArrayList<>();
         List<Map<String, Object>> docList = docResult.getList();
         List<Map<String, Object>> noteList = noteResult.getList();
@@ -150,16 +169,81 @@ public class SearchService {
     // ==================== ES 查询构建 ====================
 
     private Map<String, Object> buildQuery(String keyword, int page, int size,
-                                           List<String> fields, boolean isNoteIndex) {
+                                           List<String> fields, String indexName, SearchFilter filters) {
         Map<String, Object> queryBody = new HashMap<>();
 
-        Map<String, Object> query = new HashMap<>();
-        Map<String, Object> multiMatch = new HashMap<>();
-        multiMatch.put("query", keyword);
-        multiMatch.put("fields", fields);
-        query.put("multi_match", multiMatch);
-        queryBody.put("query", query);
+        boolean hasKeyword = keyword != null && !keyword.trim().isEmpty();
 
+        // 构建 bool 查询（must + filter）
+        Map<String, Object> boolQuery = new HashMap<>();
+        List<Object> mustClauses = new ArrayList<>();
+
+        // 关键词搜索
+        if (hasKeyword) {
+            Map<String, Object> multiMatch = new HashMap<>();
+            multiMatch.put("query", keyword);
+            multiMatch.put("fields", fields);
+            Map<String, Object> mmQuery = new HashMap<>();
+            mmQuery.put("multi_match", multiMatch);
+            mustClauses.add(mmQuery);
+        }
+
+        // 没有 must 条件时用 match_all
+        if (mustClauses.isEmpty()) {
+            queryBody.put("query", Collections.singletonMap("match_all", Collections.emptyMap()));
+        } else {
+            boolQuery.put("must", mustClauses);
+            queryBody.put("query", Collections.singletonMap("bool", boolQuery));
+        }
+
+        // 后置过滤器（不影响评分）
+        if (filters != null) {
+            List<Object> filterClauses = new ArrayList<>();
+
+            // 按电子书过滤（仅 doc_index）
+            if (filters.getEbookId() != null && "doc_index".equals(indexName)) {
+                Map<String, Object> term = new HashMap<>();
+                Map<String, Object> termField = new HashMap<>();
+                termField.put("ebookId", filters.getEbookId());
+                term.put("term", termField);
+                filterClauses.add(term);
+            }
+
+            // 按分类过滤（仅 doc_index）
+            if (filters.getCategoryId() != null && "doc_index".equals(indexName)) {
+                List<Long> ebookIds = findEbookIdsByCategory(filters.getCategoryId());
+                if (!ebookIds.isEmpty()) {
+                    Map<String, Object> terms = new HashMap<>();
+                    Map<String, Object> termsField = new HashMap<>();
+                    termsField.put("ebookId", ebookIds);
+                    terms.put("terms", termsField);
+                    filterClauses.add(terms);
+                }
+            }
+
+            if (!filterClauses.isEmpty()) {
+                // 获取当前的 query 结构，将 filter 加入 bool
+                Object currentQuery = queryBody.get("query");
+                if (currentQuery instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> queryMap = (Map<String, Object>) currentQuery;
+                    Object boolObj = queryMap.get("bool");
+                    if (boolObj instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> bool = (Map<String, Object>) boolObj;
+                        bool.put("filter", filterClauses);
+                    } else {
+                        // 当前是 match_all，包装成 bool
+                        Map<String, Object> newBool = new HashMap<>();
+                        newBool.put("must", Collections.singletonList(queryMap));
+                        newBool.put("filter", filterClauses);
+                        queryBody.put("query", Collections.singletonMap("bool", newBool));
+                    }
+                }
+            }
+        }
+
+        // 高亮
         Map<String, Object> highlight = new HashMap<>();
         Map<String, Object> highlightFields = new HashMap<>();
         for (String field : fields) {
@@ -171,10 +255,53 @@ public class SearchService {
         highlight.put("fields", highlightFields);
         queryBody.put("highlight", highlight);
 
+        // 排序
+        if (filters != null && filters.getSortBy() != null) {
+            switch (filters.getSortBy()) {
+                case "time":
+                    List<Map<String, Object>> sortByTime = new ArrayList<>();
+                    Map<String, Object> timeSort = new HashMap<>();
+                    Map<String, Object> timeOrder = new HashMap<>();
+                    timeOrder.put("order", "desc");
+                    timeSort.put("createTime", timeOrder);
+                    sortByTime.add(timeSort);
+                    queryBody.put("sort", sortByTime);
+                    break;
+                case "hot":
+                    List<Map<String, Object>> sortByHot = new ArrayList<>();
+                    Map<String, Object> hotSort = new HashMap<>();
+                    Map<String, Object> hotOrder = new HashMap<>();
+                    hotOrder.put("order", "desc");
+                    hotSort.put("viewCount", hotOrder);
+                    sortByHot.add(hotSort);
+                    queryBody.put("sort", sortByHot);
+                    break;
+                // relevance: 不传 sort 参数，ES 默认按 _score 排序
+            }
+        }
+
         queryBody.put("from", (page - 1) * size);
         queryBody.put("size", size);
 
         return queryBody;
+    }
+
+    /** 根据分类ID查找所有电子书ID（含一级和二级分类） */
+    private List<Long> findEbookIdsByCategory(Long categoryId) {
+        List<Long> ids = new ArrayList<>();
+        try {
+            List<Ebook> ebooks = ebookService.list(
+                    new LambdaQueryWrapper<Ebook>()
+                            .eq(Ebook::getCategory1Id, categoryId)
+                            .or()
+                            .eq(Ebook::getCategory2Id, categoryId));
+            for (Ebook ebook : ebooks) {
+                ids.add(ebook.getId());
+            }
+        } catch (Exception e) {
+            log.warn("按分类查询电子书失败: categoryId={}", categoryId, e);
+        }
+        return ids;
     }
 
     // ==================== ES 响应解析 ====================
@@ -252,6 +379,14 @@ public class SearchService {
         docMap.put("name", name);
         docMap.put("content", content);
         docMap.put("ebookId", ebookId);
+        // 补充排序字段
+        Doc doc = docMapper.selectById(docId);
+        if (doc != null) {
+            if (doc.getCreateTime() != null) {
+                docMap.put("createTime", doc.getCreateTime().getTime());
+            }
+            docMap.put("viewCount", doc.getViewCount() != null ? doc.getViewCount() : 0);
+        }
         putToEs(esUrl + "/doc_index/_doc/" + docId, docMap);
     }
 
@@ -265,14 +400,12 @@ public class SearchService {
 
     /**
      * 批量同步文档到 ES（用于重建索引）
-     * @param docs 文档列表，每个元素需包含 id, name, content, ebookId 属性
      */
     public void syncDocBatch(List<Doc> docs) {
         int success = 0;
         for (Doc doc : docs) {
             try {
                 String content = "";
-                // 如果有content字段
                 if (doc.getContent() != null) {
                     content = doc.getContent();
                 }
@@ -317,6 +450,14 @@ public class SearchService {
             noteMap.put("content", content != null ? content : "");
             noteMap.put("userId", userId);
             noteMap.put("isPublic", 1);
+            // 补充排序字段
+            Note note = noteMapper.selectById(noteId);
+            if (note != null) {
+                if (note.getCreateTime() != null) {
+                    noteMap.put("createTime", note.getCreateTime().getTime());
+                }
+                noteMap.put("viewCount", note.getViewCount() != null ? note.getViewCount() : 0);
+            }
 
             putToEs(esUrl + "/note_index/_doc/" + noteId, noteMap);
         } catch (Exception e) {
