@@ -22,6 +22,14 @@ spring:
     name-server: ${ROCKETMQ_HOST:localhost}:9876
     producer:
       group: ocean-producer
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
 
 mybatis-plus:
   configuration:

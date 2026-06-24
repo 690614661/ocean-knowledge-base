@@ -10,11 +10,7 @@ import com.ocean.common.CommonResp;
 import com.ocean.common.PageResp;
 import com.ocean.domain.Doc;
 import com.ocean.domain.User;
-import com.ocean.domain.dto.ChangePasswordReq;
-import com.ocean.domain.dto.ResetPasswordReq;
-import com.ocean.domain.dto.UserLoginReq;
-import com.ocean.domain.dto.UserProfileUpdateReq;
-import com.ocean.domain.dto.UserSaveReq;
+import com.ocean.domain.dto.*;
 import com.ocean.mapper.UserMapper;
 import com.ocean.util.JwtUtil;
 import com.ocean.util.Md5Util;
@@ -25,10 +21,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -39,12 +32,25 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    @Autowired
+    private MailService mailService;
+
+    @Autowired
+    private DocService docService;
+
+    // ==================== 登录/退出 ====================
+
     public CommonResp<Object> login(UserLoginReq req) {
         // 查询用户
         User user = this.getOne(new LambdaQueryWrapper<User>()
                 .eq(User::getLoginName, req.getLoginName()));
         if (user == null) {
             return CommonResp.fail("登录名或密码错误");
+        }
+
+        // 校验状态
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            return CommonResp.fail("账户已被禁用，请联系管理员");
         }
 
         // 校验密码（BCrypt 优先，兼容旧 MD5）
@@ -86,6 +92,94 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         return CommonResp.ok("退出成功");
     }
 
+    // ==================== 注册 ====================
+
+    /**
+     * 发送邮箱验证码
+     */
+    public void sendEmailCode(String email) {
+        // 1. 检查邮箱是否已被注册
+        long exists = this.count(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, email));
+        if (exists > 0) {
+            throw new BusinessException("该邮箱已被注册");
+        }
+
+        // 2. 检查频率限制（同一邮箱60秒内只能发一次）
+        String rateLimitKey = "email:ratelimit:" + email;
+        Boolean canSend = redisTemplate.opsForValue().setIfAbsent(rateLimitKey, "1", 60, TimeUnit.SECONDS);
+        if (canSend == null || !canSend) {
+            throw new BusinessException("发送过于频繁，请60秒后再试");
+        }
+
+        // 3. 生成6位验证码，存Redis，5分钟有效
+        String code = String.format("%06d", new Random().nextInt(999999));
+        redisTemplate.opsForValue().set("email:code:" + email, code, 5, TimeUnit.MINUTES);
+
+        // 4. 发送邮件
+        mailService.sendVerificationCode(email, code);
+    }
+
+    /**
+     * 用户自助注册
+     */
+    public CommonResp<Object> register(UserRegisterReq req) {
+        // 1. 校验验证码
+        String codeKey = "email:code:" + req.getEmail();
+        String storedCode = (String) redisTemplate.opsForValue().get(codeKey);
+        if (storedCode == null) {
+            return CommonResp.fail("验证码已过期，请重新获取");
+        }
+        if (!storedCode.equals(req.getEmailCode())) {
+            return CommonResp.fail("验证码错误");
+        }
+
+        // 2. 校验登录名唯一性
+        long loginNameExists = this.count(new LambdaQueryWrapper<User>()
+                .eq(User::getLoginName, req.getLoginName()));
+        if (loginNameExists > 0) {
+            // 验证码用过即废（避免暴力破解）
+            redisTemplate.delete(codeKey);
+            return CommonResp.fail("登录名已存在");
+        }
+
+        // 3. 校验邮箱唯一性（二次校验，防止并发）
+        long emailExists = this.count(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, req.getEmail()));
+        if (emailExists > 0) {
+            redisTemplate.delete(codeKey);
+            return CommonResp.fail("该邮箱已被注册");
+        }
+
+        // 4. 创建用户
+        User user = new User();
+        user.setLoginName(req.getLoginName());
+        user.setName(req.getName());
+        user.setPassword(BcryptUtil.encrypt(req.getPassword()));
+        user.setEmail(req.getEmail());
+        user.setRole("user");
+        user.setStatus(1);
+        this.save(user);
+
+        // 5. 删除已使用的验证码
+        redisTemplate.delete(codeKey);
+
+        // 6. 自动登录（返回token）
+        String token = JwtUtil.generateToken(user.getId(), user.getLoginName(), user.getName(), user.getRole());
+        redisTemplate.opsForValue().set(Constant.TOKEN_REDIS_PREFIX + user.getId(), token, 24, TimeUnit.HOURS);
+
+        Map<String, Object> loginInfo = new HashMap<>();
+        loginInfo.put("token", token);
+        loginInfo.put("userId", user.getId());
+        loginInfo.put("loginName", user.getLoginName());
+        loginInfo.put("name", user.getName());
+        loginInfo.put("role", user.getRole());
+
+        return CommonResp.ok("注册成功", loginInfo);
+    }
+
+    // ==================== 用户管理（管理员） ====================
+
     public PageResp<User> list(int page, int size, String loginName) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(loginName)) {
@@ -103,7 +197,6 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     public void save(UserSaveReq req) {
         if (req.getId() == null) {
             // 新增
-            // 检查登录名唯一
             long count = this.count(new LambdaQueryWrapper<User>()
                     .eq(User::getLoginName, req.getLoginName()));
             if (count > 0) {
@@ -117,6 +210,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             if (StringUtils.hasText(req.getPassword())) {
                 user.setPassword(BcryptUtil.encrypt(req.getPassword()));
             }
+            user.setStatus(1);
             this.save(user);
         } else {
             // 编辑
@@ -129,7 +223,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
                 user.setRole(req.getRole());
             }
             if (StringUtils.hasText(req.getPassword())) {
-            user.setPassword(BcryptUtil.encrypt(req.getPassword()));
+                user.setPassword(BcryptUtil.encrypt(req.getPassword()));
             }
             this.updateById(user);
         }
@@ -147,6 +241,8 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     public void delete(Long id) {
         this.removeById(id);
     }
+
+    // ==================== 个人中心 ====================
 
     public User getProfile(Long userId) {
         User user = this.getById(userId);
@@ -172,7 +268,6 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             throw new BusinessException("用户不存在");
         }
 
-        // 验证旧密码
         boolean passwordMatch;
         if (BcryptUtil.isBcrypt(user.getPassword())) {
             passwordMatch = BcryptUtil.matches(req.getOldPassword(), user.getPassword());
@@ -183,13 +278,11 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             throw new BusinessException("原密码不正确");
         }
 
-        // 设置新密码
         user.setPassword(BcryptUtil.encrypt(req.getNewPassword()));
         this.updateById(user);
     }
 
-    @Autowired
-    private DocService docService;
+    // ==================== 阅读历史 ====================
 
     public PageResp<Map<String, Object>> getHistory(Long userId, int page, int size) {
         String key = Constant.HISTORY_REDIS_PREFIX + userId;
@@ -209,12 +302,10 @@ public class UserService extends ServiceImpl<UserMapper, User> {
 
         List<Object> pageIds = docIds.subList(fromIndex, toIndex);
 
-        // 批量查询文档
         List<Long> ids = pageIds.stream().map(o -> Long.valueOf(o.toString())).collect(Collectors.toList());
         List<Doc> docs = docService.listByIds(ids);
         Map<Long, Doc> docMap = docs.stream().collect(Collectors.toMap(Doc::getId, d -> d));
 
-        // 保持 Redis 中的顺序（最新在前）
         List<Map<String, Object>> result = new ArrayList<>();
         for (Long id : ids) {
             Doc doc = docMap.get(id);

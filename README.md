@@ -2,6 +2,8 @@
 
 基于 Vue 3 + Spring Boot 的海洋生物在线知识库系统，支持 AI 智能问答、全文检索、文档管理、数据统计和实时通知。
 
+> 📌 **个人全栈项目** — 完整实现 AI 集成、系统架构设计、前后端开发
+
 ## 技术栈
 
 | 层次 | 技术 |
@@ -10,8 +12,8 @@
 | 后端 | Spring Boot 2.4 + MyBatis-Plus 3.5 + Spring AOP |
 | 数据库 | MySQL 8.0 + Redis 5.x + ElasticSearch 9.x |
 | 消息队列 | RocketMQ 5.x + WebSocket |
-| AI | 阿里云百炼（通义千问）API，SSE 流式输出 |
-| 部署 | Docker Compose（7 容器编排）+ Nginx 反向代理 |
+| AI | 阿里云百炼（通义千问）+ SSE 流式输出 |
+| 部署 | Docker Compose + Nginx 反向代理 |
 
 ## 功能特性
 
@@ -46,17 +48,6 @@
 - SQL 注入防御（MyBatis-Plus 参数化查询）
 - 密码加密（BCrypt）
 
-## 项目结构
-
-```
-ocean-knowledge-base/
-├── ocean-server/          # 后端 Spring Boot
-├── ocean-web/             # 前端 Vue 3 + TypeScript
-├── docs/                  # 完整设计文档
-├── docker-compose.yml     # 7 服务容器编排
-└── start.sh               # 一键启动脚本
-```
-
 ## 快速启动
 
 ```bash
@@ -67,13 +58,6 @@ docker-compose up -d
 ./start.sh start all
 ```
 
-访问地址：
-| 服务 | 地址 |
-|------|------|
-| 前端 | http://localhost:3000 |
-| 后端 API | http://localhost:8080 |
-| Swagger 文档 | http://localhost:8080/doc.html |
-
 ## AI 配置
 
 ```bash
@@ -81,6 +65,6 @@ export BAILIAN_API_KEY=your_api_key_here
 export AI_PROVIDER=bailian
 ```
 
-## 关于
+---
 
-大三软件工程实训项目，4 人团队，25 天开发周期。
+[GitHub](https://github.com/690614661) · 个人项目，持续维护中

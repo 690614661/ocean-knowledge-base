@@ -31,7 +31,9 @@ export const userApi = {
   profile: () => request.get('/api/user/profile'),
   updateProfile: (data: any) => request.post('/api/user/profile', data),
   changePassword: (data: any) => request.post('/api/user/change-password', data),
-  history: (params: any) => request.get('/api/user/history', { params })
+  history: (params: any) => request.get('/api/user/history', { params }),
+  sendCode: (email: string) => request.post(`/api/user/send-code?email=${email}`),
+  register: (data: any) => request.post('/api/user/register', data)
 }
 
 export const snapshotApi = {

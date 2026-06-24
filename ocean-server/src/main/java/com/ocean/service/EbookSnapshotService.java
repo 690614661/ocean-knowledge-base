@@ -19,6 +19,7 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -62,7 +63,42 @@ public class EbookSnapshotService extends ServiceImpl<EbookSnapshotMapper, Ebook
         }
     }
 
+    /**
+     * 获取统计数据（带30秒Redis缓存，前端轮询不压垮数据库）
+     *
+     * 注：RedisTemplate 使用 GenericJackson2JsonRedisSerializer，
+     * 反序列化后得到的是 LinkedHashMap，并非原始 StatisticResp，
+     * 因此采用 JSON 手动转换以保证缓存可靠。
+     */
     public StatisticResp getStatistic() {
+        String cacheKey = Constant.CACHE_STATISTIC;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached instanceof Map<?, ?>) {
+            // 从缓存（LinkedHashMap）恢复为 StatisticResp
+            return mapToStatisticResp((Map<String, Object>) cached);
+        }
+
+        StatisticResp resp = buildStatistic();
+
+        // 缓存30秒（前端每10秒轮询，30秒内重复请求走缓存）
+        redisTemplate.opsForValue().set(cacheKey, resp, 30, TimeUnit.SECONDS);
+        return resp;
+    }
+
+    private StatisticResp mapToStatisticResp(Map<String, Object> map) {
+        StatisticResp resp = new StatisticResp();
+        resp.setTotalViewCount((Integer) map.get("totalViewCount"));
+        resp.setTotalVoteCount((Integer) map.get("totalVoteCount"));
+        resp.setVoteRate((Double) map.get("voteRate"));
+        resp.setTodayViewCount((Integer) map.get("todayViewCount"));
+        resp.setTodayVoteCount((Integer) map.get("todayVoteCount"));
+        resp.setExpectedTodayViewCount((Integer) map.get("expectedTodayViewCount"));
+        resp.setViewIncreaseRate((Double) map.get("viewIncreaseRate"));
+        resp.setVoteIncreaseRate((Double) map.get("voteIncreaseRate"));
+        return resp;
+    }
+
+    private StatisticResp buildStatistic() {
         StatisticResp resp = new StatisticResp();
 
         // 总量（从 doc 表实时读取）
@@ -117,7 +153,26 @@ public class EbookSnapshotService extends ServiceImpl<EbookSnapshotMapper, Ebook
         return resp;
     }
 
+    private static final String CACHE_TREND_KEY = "cache:statistic:trend";
+
     public List<Map<String, Object>> get30DayTrend() {
+        // 尝试从缓存获取（趋势数据每分钟快照更新，缓存60秒足够）
+        String cacheKey = CACHE_TREND_KEY;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> cachedTrend = (List<Map<String, Object>>) cached;
+            return cachedTrend;
+        }
+
+        List<Map<String, Object>> trend = build30DayTrend();
+
+        // 缓存60秒
+        redisTemplate.opsForValue().set(cacheKey, trend, 60, TimeUnit.SECONDS);
+        return trend;
+    }
+
+    private List<Map<String, Object>> build30DayTrend() {
         List<Map<String, Object>> trend = baseMapper.get30DayTrend();
 
         // 用 Redis 实时计数替换今日数据，让趋势图与卡片数据一致

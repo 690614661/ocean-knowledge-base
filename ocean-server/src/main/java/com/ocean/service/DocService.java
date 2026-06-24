@@ -12,22 +12,17 @@ import com.ocean.mapper.DocMapper;
 import com.ocean.util.XssFilterUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,10 +39,7 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
-    private RestTemplate restTemplate;
-
-    @Value("${spring.elasticsearch.uris:http://localhost:9200}")
-    private String esUrl;
+    private SearchService searchService;
 
     public List<Doc> tree(Long ebookId) {
         // 尝试从缓存获取
@@ -159,7 +151,7 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
         }
 
         // 同步到ES索引
-        syncToEs(doc.getId(), doc.getName(), filteredContent != null ? filteredContent : "", doc.getEbookId());
+        searchService.syncDocIndex(doc.getId(), doc.getName(), filteredContent != null ? filteredContent : "", doc.getEbookId());
 
         // 更新电子书文档数
         long docCount = this.count(new LambdaQueryWrapper<Doc>()
@@ -196,7 +188,7 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
 
         // 从ES索引删除
         for (Long deleteId : idsToDelete) {
-            deleteFromEs(deleteId);
+            searchService.deleteDocIndex(deleteId);
         }
 
         // 更新电子书文档数
@@ -240,29 +232,5 @@ public class DocService extends ServiceImpl<DocMapper, Doc> {
         return allList.stream()
                 .filter(d -> d.getParent() == 0)
                 .collect(Collectors.toList());
-    }
-
-    private void syncToEs(Long docId, String name, String content, Long ebookId) {
-        try {
-            Map<String, Object> docMap = new HashMap<>();
-            docMap.put("name", name);
-            docMap.put("content", content);
-            docMap.put("ebookId", ebookId);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(docMap, headers);
-            restTemplate.put(esUrl + "/doc_index/_doc/" + docId, entity);
-        } catch (Exception e) {
-            log.error("ES索引同步失败: docId={}", docId, e);
-        }
-    }
-
-    private void deleteFromEs(Long docId) {
-        try {
-            restTemplate.delete(esUrl + "/doc_index/_doc/" + docId);
-        } catch (Exception e) {
-            log.error("ES索引删除失败: docId={}", docId, e);
-        }
     }
 }

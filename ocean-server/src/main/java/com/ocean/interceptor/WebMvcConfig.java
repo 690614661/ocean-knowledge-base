@@ -45,6 +45,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/doc/*",
                         "/api/snapshot/get-statistic",
                         "/api/user/login",
+                        "/api/user/register",
+                        "/api/user/send-code",
                         "/api/search",
                         "/api/note/public",
                         "/api/note/*",
