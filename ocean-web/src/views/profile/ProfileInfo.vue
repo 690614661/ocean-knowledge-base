@@ -5,6 +5,9 @@
     </div>
     <div class="card-body">
       <a-skeleton :loading="loading" active>
+        <div class="avatar-info" v-if="profile.avatar" style="text-align:center;margin-bottom:20px">
+          <a-avatar :size="72" :src="profile.avatar" />
+        </div>
         <div class="info-item">
           <span class="info-label">登录名</span>
           <span class="info-value">{{ profile.loginName }}</span>

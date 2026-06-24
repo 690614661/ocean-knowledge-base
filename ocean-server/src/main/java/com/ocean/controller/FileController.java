@@ -2,18 +2,17 @@ package com.ocean.controller;
 
 import com.ocean.common.BusinessException;
 import com.ocean.common.CommonResp;
+import com.ocean.file.FileStorageStrategy;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 @Api(tags = "文件上传")
@@ -22,25 +21,36 @@ import java.util.UUID;
 @RequestMapping("/api/file")
 public class FileController {
 
-    @Value("${file.upload-path}")
-    private String uploadPath;
+    @Autowired
+    private FileStorageStrategy fileStorage;
 
-    @ApiOperation("上传封面图片")
+    @Value("${ocean.file.max-size:10485760}")
+    private long maxSize;
+
+    @Value("${ocean.file.allowed-types:}")
+    private String allowedTypesStr;
+
+    @ApiOperation("通用文件上传")
     @PostMapping("/upload")
-    public CommonResp<String> upload(@RequestParam("file") MultipartFile file) {
+    public CommonResp<String> upload(@RequestParam("file") MultipartFile file,
+                                     @RequestParam(defaultValue = "file") String dir) {
         if (file.isEmpty()) {
             throw new BusinessException("请选择文件");
         }
 
-        // 校验文件类型
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw new BusinessException("仅允许上传图片文件");
+        // 校验文件大小
+        if (file.getSize() > maxSize) {
+            long mb = maxSize / (1024 * 1024);
+            throw new BusinessException("文件大小不能超过" + mb + "MB");
         }
 
-        // 校验文件大小（2MB）
-        if (file.getSize() > 2 * 1024 * 1024) {
-            throw new BusinessException("文件大小不能超过2MB");
+        // 校验文件类型
+        String contentType = file.getContentType();
+        if (contentType != null && !allowedTypesStr.isEmpty()) {
+            List<String> allowedTypes = Arrays.asList(allowedTypesStr.split("\\s*,\\s*"));
+            if (allowedTypes.stream().noneMatch(t -> t.equalsIgnoreCase(contentType))) {
+                throw new BusinessException("不支持的文件类型: " + contentType);
+            }
         }
 
         // 生成文件名
@@ -49,20 +59,17 @@ public class FileController {
         if (originalFilename != null && originalFilename.contains(".")) {
             ext = originalFilename.substring(originalFilename.lastIndexOf("."));
         }
-        String newFilename = UUID.randomUUID().toString().replace("-", "") + ext;
+        String fileName = dir + "/" + UUID.randomUUID().toString().replace("-", "") + ext;
 
-        // 保存文件
-        File dest = new File(uploadPath + "cover/" + newFilename);
-        if (!dest.getParentFile().exists()) {
-            dest.getParentFile().mkdirs();
-        }
+        // 上传（自动切换到 local 或 qiniu）
+        String url;
         try {
-            file.transferTo(dest);
-        } catch (IOException e) {
+            url = fileStorage.upload(file.getBytes(), fileName);
+        } catch (Exception e) {
             log.error("文件上传失败", e);
-            throw new BusinessException("文件上传失败");
+            throw new BusinessException("文件上传失败: " + e.getMessage());
         }
 
-        return CommonResp.ok("上传成功", "/files/cover/" + newFilename);
+        return CommonResp.ok("上传成功", url);
     }
 }

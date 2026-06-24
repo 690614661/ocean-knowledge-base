@@ -46,9 +46,12 @@ export const snapshotApi = {
 }
 
 export const fileApi = {
-  upload: (formData: FormData) => request.post('/api/file/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  })
+  upload: (formData: FormData, dir?: string) => {
+    const url = dir ? `/api/file/upload?dir=${dir}` : '/api/file/upload'
+    return request.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
 }
 
 export const searchApi = {

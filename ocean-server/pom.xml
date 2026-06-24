@@ -144,6 +144,13 @@
             <version>${jsoup.version}</version>
         </dependency>
 
+        <!-- 七牛云对象存储 SDK -->
+        <dependency>
+            <groupId>com.qiniu</groupId>
+            <artifactId>qiniu-java-sdk</artifactId>
+            <version>7.7.0</version>
+        </dependency>
+
         <!-- Guava (RateLimiter) -->
         <dependency>
             <groupId>com.google.guava</groupId>

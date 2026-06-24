@@ -3,7 +3,8 @@
     <div class="profile-layout">
       <div class="profile-sidebar">
         <div class="profile-user">
-          <a-avatar :size="64" class="profile-avatar">{{ user.name?.charAt(0) }}</a-avatar>
+          <a-avatar :size="64" class="profile-avatar" v-if="user.avatar" :src="user.avatar" />
+          <a-avatar :size="64" class="profile-avatar" v-else>{{ user.name?.charAt(0) }}</a-avatar>
           <div class="profile-username">{{ user.name }}</div>
           <div class="profile-loginname">{{ user.loginName }}</div>
           <div class="profile-role-tag">

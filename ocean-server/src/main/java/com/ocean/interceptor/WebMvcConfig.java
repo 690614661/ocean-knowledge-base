@@ -19,7 +19,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Autowired
     private AdminInterceptor adminInterceptor;
 
-    @Value("${file.upload-path}")
+    @Value("${ocean.file.local.upload-path:./upload/}")
     private String uploadPath;
 
     @Override
@@ -74,7 +74,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/user/reset-password",
                         "/api/user/login-log",
                         "/api/user/online",
-                        "/api/file/**"
+                        "/api/file/delete/**"
                 );
     }
 }

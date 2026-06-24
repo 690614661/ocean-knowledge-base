@@ -34,7 +34,8 @@
             <template v-if="user.token">
               <a-dropdown>
                 <div class="user-info" style="cursor: pointer">
-                  <a-avatar :size="30" class="user-avatar">{{ user.name?.charAt(0) }}</a-avatar>
+                  <a-avatar :size="30" class="user-avatar" v-if="user.avatar" :src="user.avatar" />
+                  <a-avatar :size="30" class="user-avatar" v-else>{{ user.name?.charAt(0) }}</a-avatar>
                   <span class="user-name">{{ user.name }}</span>
                   <down-outlined style="color: rgba(255,255,255,0.5); font-size: 10px; margin-left: 2px;" />
                 </div>

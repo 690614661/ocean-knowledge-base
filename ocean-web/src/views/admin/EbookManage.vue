@@ -166,7 +166,7 @@ export default defineComponent({
       const formData = new FormData()
       formData.append('file', options.file)
       try {
-        const res: any = await fileApi.upload(formData)
+        const res: any = await fileApi.upload(formData, 'cover')
         form.value.cover = res.content
         message.success('封面上传成功')
       } catch {

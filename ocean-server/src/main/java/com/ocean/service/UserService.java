@@ -306,6 +306,9 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             throw new BusinessException("用户不存在");
         }
         user.setName(req.getName());
+        if (req.getAvatar() != null) {
+            user.setAvatar(req.getAvatar());
+        }
         this.updateById(user);
     }
 

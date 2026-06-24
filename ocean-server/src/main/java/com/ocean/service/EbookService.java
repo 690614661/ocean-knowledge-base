@@ -11,6 +11,7 @@ import com.ocean.domain.Category;
 import com.ocean.domain.Doc;
 import com.ocean.domain.Ebook;
 import com.ocean.domain.dto.EbookSaveReq;
+import com.ocean.file.FileStorageStrategy;
 import com.ocean.mapper.ContentMapper;
 import com.ocean.mapper.DocMapper;
 import com.ocean.mapper.EbookMapper;
@@ -38,6 +39,31 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private FileStorageStrategy fileStorage;
+
+    /** 从文件名中提取存储路径（去掉 domain 前缀） */
+    private String extractFileName(String url) {
+        if (url == null || url.isEmpty()) return null;
+        // 如果是完整URL（七牛云），提取路径部分
+        if (url.startsWith("http")) {
+            int idx = url.indexOf("//");
+            if (idx >= 0) {
+                String afterProtocol = url.substring(idx + 2);
+                int pathStart = afterProtocol.indexOf("/");
+                if (pathStart >= 0) {
+                    return afterProtocol.substring(pathStart + 1);
+                }
+            }
+            return null;
+        }
+        // 本地路径: /files/cover/xxx.jpg → cover/xxx.jpg
+        if (url.startsWith("/files/")) {
+            return url.substring("/files/".length());
+        }
+        return url;
+    }
 
     public PageResp<Ebook> list(int page, int size, String name, Long category1Id, Long category2Id) {
         LambdaQueryWrapper<Ebook> wrapper = new LambdaQueryWrapper<>();
@@ -83,18 +109,29 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
 
     @Transactional(rollbackFor = Exception.class)
     public void save(EbookSaveReq req) {
+        String oldCover = null;
         Ebook ebook = new Ebook();
         if (req.getId() != null) {
             ebook = this.getById(req.getId());
             if (ebook == null) {
                 throw new BusinessException("电子书不存在");
             }
+            oldCover = ebook.getCover();
         }
         ebook.setName(req.getName());
         ebook.setCategory1Id(req.getCategory1Id());
         ebook.setCategory2Id(req.getCategory2Id());
         ebook.setDescription(req.getDescription());
         ebook.setCover(req.getCover());
+
+        // 封面变了，删除旧封面文件
+        if (oldCover != null && req.getCover() != null && !oldCover.equals(req.getCover())) {
+            String oldFileName = extractFileName(oldCover);
+            if (oldFileName != null) {
+                fileStorage.delete(oldFileName);
+            }
+        }
+
         if (req.getId() == null) {
             ebook.setDocCount(0);
             ebook.setViewCount(0);
@@ -111,6 +148,12 @@ public class EbookService extends ServiceImpl<EbookMapper, Ebook> {
         Ebook ebook = this.getById(id);
         if (ebook == null) {
             throw new BusinessException("电子书不存在");
+        }
+
+        // 删除封面文件
+        String coverFileName = extractFileName(ebook.getCover());
+        if (coverFileName != null) {
+            fileStorage.delete(coverFileName);
         }
 
         deleteEbookCascade(id);

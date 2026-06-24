@@ -11,4 +11,7 @@ public class UserProfileUpdateReq {
     @NotBlank(message = "昵称不能为空")
     @Size(max = 50, message = "昵称最大50字符")
     private String name;
+
+    /** 头像URL */
+    private String avatar;
 }
