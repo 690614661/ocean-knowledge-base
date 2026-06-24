@@ -8,7 +8,9 @@ import com.ocean.common.BusinessException;
 import com.ocean.common.PageResp;
 import com.ocean.domain.Note;
 import com.ocean.domain.dto.NoteSaveReq;
+import com.ocean.domain.User;
 import com.ocean.mapper.NoteMapper;
+import com.ocean.mapper.UserMapper;
 import com.ocean.util.XssFilterUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,9 @@ public class NoteService extends ServiceImpl<NoteMapper, Note> {
 
     @Autowired
     private SearchService searchService;
+
+    @Autowired
+    private UserMapper userMapper;
 
     /**
      * 启动时将数据库中所有公开笔记批量同步到 ES 索引
@@ -57,6 +62,15 @@ public class NoteService extends ServiceImpl<NoteMapper, Note> {
         }
         wrapper.orderByDesc(Note::getUpdateTime);
         IPage<Note> notePage = this.page(new Page<>(page, size), wrapper);
+        // 设置作者名
+        for (Note note : notePage.getRecords()) {
+            if (note.getUserId() != null) {
+                User user = userMapper.selectById(note.getUserId());
+                if (user != null) {
+                    note.setAuthorName(user.getName());
+                }
+            }
+        }
         return new PageResp<>(notePage.getTotal(), notePage.getRecords());
     }
 

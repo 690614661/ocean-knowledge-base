@@ -23,13 +23,14 @@
           class="notes-list"
         >
           <template #renderItem="{ item }">
-            <a-list-item class="note-card">
+            <a-list-item class="note-card note-card-public" @click="$router.push(`/note/edit/${item.id}?readonly=1`)">
               <a-list-item-meta>
                 <template #title>
-                  <a @click="$router.push(`/note/edit/${item.id}`)">{{ item.title }}</a>
+                  <span class="public-note-title">{{ item.title }}</span>
                 </template>
                 <template #description>
                   <div class="note-desc">
+                    <span class="note-author">✍️ {{ item.authorName || '匿名' }}</span>
                     <span>👁 {{ item.viewCount }} 阅读</span>
                     <span>👍 {{ item.voteCount }} 点赞</span>
                     <span>📅 {{ item.createTime?.slice(0, 10) }}</span>
@@ -251,4 +252,42 @@ export default defineComponent({
   color: #fa8c16;
   font-weight: 500;
 }
+
+/* 公开笔记卡片 - 点击整行进入阅读 */
+.note-card-public {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.note-card-public:hover {
+  background: #f0f5ff !important;
+}
+
+/* 公开笔记标题 - 深色可读，无链接颜色 */
+.public-note-title {
+  color: #1a1a2e;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* 笔记描述信息 - 提高对比度 */
+.note-desc {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #555 !important;
+  margin-top: 4px;
+}
+
+.note-desc span {
+  color: #666;
+}
+
+/* 作者名样式 */
+.note-author {
+  color: #1677ff !important;
+  font-weight: 500;
+}
+
+/* "我的笔记"标签页保留原来的可点击链接样式 */
 </style>

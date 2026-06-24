@@ -3,13 +3,15 @@
     <div class="note-edit-container">
       <div class="note-edit-header">
         <a-button class="back-btn" @click="$router.push('/notes')">← 返回</a-button>
-        <h2>{{ form.id ? '编辑笔记' : '新建笔记' }}</h2>
-        <a-switch
-          v-model:checked="isPublic"
-          checked-children="🌍 公开"
-          un-checked-children="🔒 私有"
-          class="visibility-switch"
-        />
+        <h2>{{ readonly ? '查看笔记' : isOwner ? '编辑笔记' : form.id ? '查看笔记' : '新建笔记' }}</h2>
+        <template v-if="isOwner">
+          <a-switch
+            v-model:checked="isPublic"
+            checked-children="🌍 公开"
+            un-checked-children="🔒 私有"
+            class="visibility-switch"
+          />
+        </template>
         <a-button
           v-if="form.id"
           class="fav-btn"
@@ -19,24 +21,38 @@
         >
           {{ favorited ? '⭐ 已收藏' : '☆ 收藏' }}
         </a-button>
+        <a-button
+          v-if="form.id"
+          class="vote-btn"
+          :loading="voteLoading"
+          @click="handleVote"
+        >
+          👍 {{ form.voteCount || 0 }}
+        </a-button>
       </div>
 
       <div class="note-edit-card">
-        <a-input
-          v-model:value="form.title"
-          placeholder="输入笔记标题..."
-          class="title-input"
-          size="large"
-        />
-        <a-textarea
-          v-model:value="form.content"
-          :rows="16"
-          placeholder="开始写下你的学习心得..."
-          class="content-editor"
-        />
+        <template v-if="!isOwner && form.id">
+          <div class="readonly-title">{{ form.title }}</div>
+          <div class="readonly-content">{{ form.content }}</div>
+        </template>
+        <template v-else>
+          <a-input
+            v-model:value="form.title"
+            placeholder="输入笔记标题..."
+            class="title-input"
+            size="large"
+          />
+          <a-textarea
+            v-model:value="form.content"
+            :rows="16"
+            placeholder="开始写下你的学习心得..."
+            class="content-editor"
+          />
+        </template>
       </div>
 
-      <div class="note-actions">
+      <div v-if="isOwner" class="note-actions">
         <div class="ai-buttons">
           <a-button class="ai-btn" :loading="generating === 'note_generate'" :disabled="!!generating" @click="aiGenerate('note_generate')">
             🤖 AI 生成
@@ -58,6 +74,10 @@
           </a-button>
         </div>
       </div>
+
+      <div v-else-if="form.id" class="note-readonly-footer">
+        <a-button @click="$router.push('/notes')">← 返回笔记列表</a-button>
+      </div>
     </div>
   </div>
 </template>
@@ -65,6 +85,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useStore } from 'vuex'
 import { noteApi, aiApi, favoriteApi } from '../api'
 import { message } from 'ant-design-vue'
 
@@ -73,11 +94,18 @@ export default defineComponent({
   setup() {
     const route = useRoute()
     const router = useRouter()
+    const store = useStore()
+    const user = computed(() => store.state.user)
     const form = ref<any>({ title: '', content: '', isPublic: 0 })
     const saving = ref(false)
     const generating = ref<string | null>(null)
     const favorited = ref(false)
     const favLoading = ref(false)
+    const readonly = computed(() => route.query.readonly === '1')
+    const isOwner = computed(() => {
+      if (readonly.value) return false
+      return !form.value.id || form.value.userId === user.value.userId
+    })
     const isPublic = computed({
       get: () => form.value.isPublic === 1,
       set: (val: boolean) => { form.value.isPublic = val ? 1 : 0 }
@@ -149,7 +177,25 @@ export default defineComponent({
       }
     }
 
-    return { form, isPublic, saving, generating, favorited, favLoading, handleFavorite, handleSave, aiGenerate }
+    const voteLoading = ref(false)
+    const handleVote = async () => {
+      if (!user.value.token) {
+        message.warning('请先登录')
+        return
+      }
+      voteLoading.value = true
+      try {
+        await noteApi.vote(form.value.id)
+        message.success('点赞成功！')
+        form.value.voteCount = (form.value.voteCount || 0) + 1
+      } catch (e: any) {
+        message.error(e?.response?.data?.message || '点赞失败')
+      } finally {
+        voteLoading.value = false
+      }
+    }
+
+    return { form, isPublic, isOwner, saving, generating, favorited, favLoading, voteLoading, handleFavorite, handleSave, aiGenerate, handleVote }
   }
 })
 </script>
@@ -284,5 +330,49 @@ export default defineComponent({
   border: none;
   font-weight: 500;
   padding: 0 24px;
+}
+
+.note-readonly-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+  padding: 16px 24px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.vote-btn {
+  border-radius: 10px;
+  font-size: 13px;
+  color: #ff4d4f;
+  border-color: #ffccc7;
+  transition: all 0.2s;
+}
+.vote-btn:hover {
+  color: white !important;
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+}
+
+/* 只读笔记阅读样式 */
+.readonly-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1.4;
+  padding: 8px 0 20px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.readonly-content {
+  font-size: 16px;
+  line-height: 1.9;
+  color: #333;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0 0 8px;
+  min-height: 300px;
 }
 </style>

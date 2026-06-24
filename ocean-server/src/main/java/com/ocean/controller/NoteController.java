@@ -8,7 +8,9 @@ import com.ocean.domain.dto.BatchDeleteReq;
 import com.ocean.domain.dto.NoteSaveReq;
 import com.ocean.interceptor.RateLimit;
 import com.ocean.service.NoteService;
+import com.ocean.service.NotificationService;
 import com.ocean.util.JwtUtil;
+import lombok.extern.slf4j.Slf4j;
 import com.ocean.util.RequestUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -22,6 +24,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Api(tags = "用户笔记")
 @RestController
 @RequestMapping("/api/note")
@@ -32,6 +35,9 @@ public class NoteController {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private NotificationService notificationService;
 
     @ApiOperation("我的笔记列表")
     @GetMapping("/list")
@@ -99,7 +105,7 @@ public class NoteController {
     @ApiOperation("笔记点赞")
     @RateLimit(permitsPerMinute = 30)
     @PostMapping("/vote/{id}")
-    public CommonResp<?> vote(@PathVariable Long id) {
+    public CommonResp<?> vote(@PathVariable Long id, HttpServletRequest request) {
         String ip = RequestUtil.getClientIp();
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String redisKey = "note_vote:" + id + ":" + ip + ":" + today;
@@ -110,6 +116,28 @@ public class NoteController {
         }
 
         noteService.vote(id, ip);
+
+        // 发送通知给笔记作者
+        try {
+            Note note = noteService.getById(id);
+            if (note != null) {
+                String token = request.getHeader("token");
+                if (token != null && JwtUtil.validateToken(token)) {
+                    Long voterId = JwtUtil.getUserIdFromToken(token);
+                    String voterName = JwtUtil.getNameFromToken(token);
+                    if (!note.getUserId().equals(voterId)) {
+                        notificationService.send(
+                                voterId, note.getUserId(), "vote",
+                                "用户 " + voterName + " 赞了你的笔记《" + note.getTitle() + "》",
+                                null, note.getId()
+                        );
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("发送点赞通知失败", e);
+        }
+
         return CommonResp.ok("点赞成功");
     }
 }

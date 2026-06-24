@@ -42,4 +42,8 @@ public class DocComment implements Serializable {
     /** 是否有子评论（非数据库字段） */
     @TableField(exist = false)
     private boolean hasChildren;
+
+    /** 用户头像URL（非数据库字段） */
+    @TableField(exist = false)
+    private String userAvatar;
 }

@@ -32,4 +32,7 @@ public class Note implements Serializable {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private Date updateTime;
+
+    @TableField(exist = false)
+    private String authorName;
 }

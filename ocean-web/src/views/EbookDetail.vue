@@ -92,6 +92,8 @@
             <div class="comments-list" v-if="comments.length > 0">
               <div v-for="comment in comments" :key="comment.id" class="comment-item">
                 <div class="comment-header">
+                  <a-avatar :size="28" class="comment-avatar" v-if="comment.userAvatar" :src="comment.userAvatar" />
+                  <a-avatar :size="28" class="comment-avatar" v-else>{{ comment.userName?.charAt(0) }}</a-avatar>
                   <span class="comment-user">{{ comment.userName }}</span>
                   <span class="comment-time">{{ comment.createTime?.slice(0, 16) }}</span>
                   <a-button v-if="user.userId === comment.userId" type="link" danger size="small"
@@ -107,6 +109,8 @@
                 <div v-if="comment.children && comment.children.length > 0" class="comment-replies">
                   <div v-for="child in comment.children" :key="child.id" class="comment-item reply-item">
                     <div class="comment-header">
+                      <a-avatar :size="24" class="comment-avatar" v-if="child.userAvatar" :src="child.userAvatar" />
+                      <a-avatar :size="24" class="comment-avatar" v-else>{{ child.userName?.charAt(0) }}</a-avatar>
                       <span class="comment-user">{{ child.userName }}</span>
                       <span v-if="child.replyToUserName" class="reply-to">回复 @{{ child.replyToUserName }}</span>
                       <span class="comment-time">{{ child.createTime?.slice(0, 16) }}</span>
@@ -651,6 +655,14 @@ export default defineComponent({
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+}
+
+.comment-avatar {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1677ff, #36cfc9);
+  color: #fff;
+  font-weight: 600;
+  font-size: 12px;
 }
 
 .comment-user {

@@ -4,11 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ocean.common.BusinessException;
 import com.ocean.domain.DocComment;
+import com.ocean.domain.User;
 import com.ocean.domain.dto.DocCommentSaveReq;
 import com.ocean.mapper.DocCommentMapper;
+import com.ocean.mapper.UserMapper;
 import com.ocean.util.SnowFlakeUtil;
 import com.ocean.util.XssFilterUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +24,9 @@ import java.util.stream.Collectors;
 @Service
 public class DocCommentService extends ServiceImpl<DocCommentMapper, DocComment> {
 
+    @Autowired
+    private UserMapper userMapper;
+
     /**
      * 获取文档评论列表（树形结构，两级嵌套）
      */
@@ -28,6 +34,16 @@ public class DocCommentService extends ServiceImpl<DocCommentMapper, DocComment>
         List<DocComment> all = this.list(new LambdaQueryWrapper<DocComment>()
                 .eq(DocComment::getDocId, docId)
                 .orderByAsc(DocComment::getCreateTime));
+
+        // 填充用户头像
+        for (DocComment comment : all) {
+            if (comment.getUserId() != null) {
+                User user = userMapper.selectById(comment.getUserId());
+                if (user != null) {
+                    comment.setUserAvatar(user.getAvatar());
+                }
+            }
+        }
 
         // 构建树：根评论 + 子评论
         List<DocComment> roots = new ArrayList<>();
