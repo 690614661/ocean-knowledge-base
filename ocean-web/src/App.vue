@@ -189,6 +189,7 @@ export default defineComponent({
         unreadCount.value = data?.count || 0
       })
       wsClient.on('notification', (data: any) => {
+        unreadCount.value++
         if (notifDrawerOpen.value) loadNotifList()
       })
     }
