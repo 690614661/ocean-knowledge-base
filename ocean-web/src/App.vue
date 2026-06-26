@@ -165,6 +165,7 @@ export default defineComponent({
 
     const showNotificationDrawer = () => {
       notifDrawerOpen.value = true
+      loadUnreadCount()
       loadNotifList()
     }
 
@@ -189,20 +190,31 @@ export default defineComponent({
         unreadCount.value = data?.count || 0
       })
       wsClient.on('notification', (data: any) => {
-        unreadCount.value++
+        loadUnreadCount()
         if (notifDrawerOpen.value) loadNotifList()
       })
+    }
+
+    // 定时轮询未读数（WebSocket 兜底，每15秒检查）
+    let pollTimer: ReturnType<typeof setInterval> | null = null
+    const startPolling = () => {
+      if (pollTimer) return
+      pollTimer = setInterval(() => {
+        if (store.state.user?.token) loadUnreadCount()
+      }, 15000)
     }
 
     onMounted(() => {
       if (user.value.token) {
         loadUnreadCount()
         connectWs()
+        startPolling()
       }
     })
 
     onUnmounted(() => {
       wsClient.disconnect()
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
     })
 
     const toLogin = () => router.push('/login')

@@ -15,7 +15,7 @@ import com.ocean.util.RequestUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,7 +34,7 @@ public class NoteController {
     private NoteService noteService;
 
     @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
+    private StringRedisTemplate stringRedisTemplate;
 
     @Autowired
     private NotificationService notificationService;
@@ -106,32 +106,33 @@ public class NoteController {
     @RateLimit(permitsPerMinute = 30)
     @PostMapping("/vote/{id}")
     public CommonResp<?> vote(@PathVariable Long id, HttpServletRequest request) {
-        String ip = RequestUtil.getClientIp();
+        // 需要登录
+        String token = request.getHeader("token");
+        if (token == null || !JwtUtil.validateToken(token)) {
+            return CommonResp.fail("登录已过期，请重新登录");
+        }
+        Long voterId = JwtUtil.getUserIdFromToken(token);
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String redisKey = "note_vote:" + id + ":" + ip + ":" + today;
+        String redisKey = "note_vote:" + id + ":" + voterId + ":" + today;
 
-        Boolean setSuccess = redisTemplate.opsForValue().setIfAbsent(redisKey, "1", 24, TimeUnit.HOURS);
+        Boolean setSuccess = stringRedisTemplate.opsForValue().setIfAbsent(redisKey, "1", 24, TimeUnit.HOURS);
         if (setSuccess == null || !setSuccess) {
             return CommonResp.fail("今日已点赞");
         }
 
-        noteService.vote(id, ip);
+        noteService.vote(id, RequestUtil.getClientIp());
 
         // 发送通知给笔记作者
         try {
             Note note = noteService.getById(id);
             if (note != null) {
-                String token = request.getHeader("token");
-                if (token != null && JwtUtil.validateToken(token)) {
-                    Long voterId = JwtUtil.getUserIdFromToken(token);
-                    String voterName = JwtUtil.getNameFromToken(token);
-                    if (!note.getUserId().equals(voterId)) {
-                        notificationService.send(
-                                voterId, note.getUserId(), "vote",
-                                "用户 " + voterName + " 赞了你的笔记《" + note.getTitle() + "》",
-                                null, note.getId()
-                        );
-                    }
+                String voterName = JwtUtil.getNameFromToken(token);
+                if (!note.getUserId().equals(voterId)) {
+                    notificationService.send(
+                            voterId, note.getUserId(), "vote",
+                            "用户 " + voterName + " 赞了你的笔记《" + note.getTitle() + "》",
+                            null, note.getId()
+                    );
                 }
             }
         } catch (Exception e) {
