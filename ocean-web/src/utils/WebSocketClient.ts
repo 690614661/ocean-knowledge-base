@@ -24,7 +24,7 @@ class WebSocketClient {
     // 根据当前页面协议选择 ws 或 wss
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    this.url = `${protocol}//${host}/ws?token=${token}`
+    this.url = `${protocol}//${host}/api/ws?token=${token}`
 
     this.doConnect()
   }

@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
-@ServerEndpoint("/ws")
+@ServerEndpoint("/api/ws")
 public class WebSocketServer {
 
     /** userId → Session 映射 */
