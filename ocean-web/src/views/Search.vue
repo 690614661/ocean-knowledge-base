@@ -242,7 +242,7 @@ export default defineComponent({
 
     const goToDoc = (item: any) => {
       if (item._index === 'note_index') {
-        router.push(`/note/${item.id}`)
+        router.push(`/note/edit/${item.id}?readonly=1`)
       } else {
         router.push(`/ebook/${item.ebookId}`)
       }
